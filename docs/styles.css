@@ -332,7 +332,11 @@ body.tv-mode .tv-badge {
     align-items: center;
     gap: 8px;
 }
+.tv-exit-hint {
+    display: none;
+}
 body.tv-mode .tv-exit-hint {
+    display: block;
     position: fixed;
     bottom: 16px;
     right: 28px;
