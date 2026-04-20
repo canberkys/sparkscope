@@ -2,19 +2,14 @@
 
 Real-time monitoring dashboard for NVIDIA DGX Spark / Dell Pro Max with GB10 cluster nodes. Runs on your laptop/workstation, monitors 1–N GB10 hosts over SSH, and streams live metrics via WebSocket to a glassmorphism dark-themed web UI.
 
-<!-- Live demo badge — replace with your HF Space URL after deploying -->
-<!-- [![Live Demo](https://img.shields.io/badge/🤗%20Live%20Demo-sparkscope-yellow)](https://huggingface.co/spaces/YOUR-USER/sparkscope) -->
+[![Live Demo](https://img.shields.io/badge/🎭%20Live%20Demo-GitHub%20Pages-22d3ee?style=flat-square)](https://canberkys.github.io/sparkscope/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
 ## 🎭 Live Demo
 
-A **demo mode** ships with the repo — it swaps SSH/vLLM polling for synthetic data (`mock_collector.py`), so you can host a working showcase of the UI without exposing any real infrastructure.
+**[👉 canberkys.github.io/sparkscope](https://canberkys.github.io/sparkscope/)** — runs entirely in your browser with synthetic data, no backend required.
 
-**Quick deploy options** — see [`deploy/README.md`](deploy/README.md) for full instructions:
-- **Hugging Face Spaces** (free, Docker-based, persistent URL) — recommended
-- **Railway**, **Render**, **Fly.io** — one-click from GitHub
-- **Local Docker** — `docker build -t sparkscope . && docker run -p 8000:7860 sparkscope`
-
-Environment variable `DEMO_MODE=1` flips demo mode on. The bundled `Dockerfile` sets it by default.
+The full UI is mirrored in the `docs/` folder with a JavaScript-only mock layer (`demo_mock.js`) that replaces `fetch` + `WebSocket` with in-memory generators. You see the same dashboard with realistic simulated metrics: 2 GB10 nodes, CPU/GPU waveforms, inference bursts, a vLLM serving `qwen3.6-35b` at ~50 tok/sec.
 
 > The `static/device.svg` icon is a generic SVG drawn for this project — no vendor logos.
 

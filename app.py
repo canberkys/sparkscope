@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import os
 import time
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
@@ -19,19 +18,11 @@ import db
 from commands import COMMANDS, get_commands_grouped
 from ssh_collector import SSHPool
 from vllm_collector import collect_vllm
-from mock_collector import MockCollector, mock_vllm_collect
 
 # --- Config ---
-# In demo mode, use bundled config.demo.yaml if present; otherwise config.yaml.
-DEMO_MODE = os.environ.get("DEMO_MODE", "").lower() in ("1", "true", "yes")
-CONFIG_PATH = Path(__file__).parent / ("config.demo.yaml" if DEMO_MODE else "config.yaml")
-if not CONFIG_PATH.exists() and DEMO_MODE:
-    CONFIG_PATH = Path(__file__).parent / "config.example.yaml"
+CONFIG_PATH = Path(__file__).parent / "config.yaml"
 with open(CONFIG_PATH) as f:
     config = yaml.safe_load(f)
-# Allow config.yaml to toggle demo mode too
-if config.get("demo_mode"):
-    DEMO_MODE = True
 
 # --- Logging ---
 log_dir = Path("~/.gb10-dashboard").expanduser()
@@ -56,26 +47,21 @@ async def lifespan(app: FastAPI):
     db.set_db_path(config["database"]["path"])
     await db.init_db()
 
-    if DEMO_MODE:
-        logger.info("🎭 DEMO MODE enabled — using MockCollector (no real SSH)")
-        ssh_pool = MockCollector(hosts=config["hosts"])
-    else:
-        ssh_pool = SSHPool(
-            hosts=config["hosts"],
-            timeout=config["polling"]["timeout_seconds"],
-            backoff=config["polling"]["reconnect_backoff_seconds"],
-        )
+    ssh_pool = SSHPool(
+        hosts=config["hosts"],
+        timeout=config["polling"]["timeout_seconds"],
+        backoff=config["polling"]["reconnect_backoff_seconds"],
+    )
 
     poll_task = asyncio.create_task(polling_loop())
     retention_task = asyncio.create_task(retention_loop())
-    nvme_task = None if DEMO_MODE else asyncio.create_task(nvme_slow_poll())
+    nvme_task = asyncio.create_task(nvme_slow_poll())
 
     yield
 
     poll_task.cancel()
     retention_task.cancel()
-    if nvme_task is not None:
-        nvme_task.cancel()
+    nvme_task.cancel()
     if ssh_pool:
         await ssh_pool.close_all()
     await db.close_db()
@@ -116,13 +102,10 @@ async def collect_all():
         # Collect vLLM state (async, best-effort — don't block main metrics)
         vllm_data = None
         try:
-            if DEMO_MODE:
-                vllm_data = await mock_vllm_collect(ssh_pool, host_name, vllm_state.get(host_name))
-            else:
-                vllm_data = await asyncio.wait_for(
-                    collect_vllm(ssh_pool, host_name, vllm_state.get(host_name)),
-                    timeout=4.0,
-                )
+            vllm_data = await asyncio.wait_for(
+                collect_vllm(ssh_pool, host_name, vllm_state.get(host_name)),
+                timeout=4.0,
+            )
             if vllm_data:
                 vllm_state[host_name] = vllm_data
         except (asyncio.TimeoutError, Exception) as e:
@@ -331,24 +314,6 @@ async def api_host_info(host: str):
     cfg = config["hosts"][host]
     if ssh_pool is None:
         return {"error": "SSH pool not ready"}
-
-    if DEMO_MODE:
-        # Return fake but realistic static info
-        info = {
-            "name": host,
-            "display_name": cfg["display_name"],
-            "ssh_alias": cfg["ssh_alias"],
-            "management_ip": cfg.get("management_ip", ""),
-            "cluster_ip": cfg.get("cluster_ip", ""),
-            "cluster_peer_ip": cfg.get("cluster_peer_ip", ""),
-            "hostname": host,
-            "ip": cfg.get("cluster_ip", "192.168.100.10"),
-            "kernel": "6.17.0-1014-nvidia",
-            "os": "Ubuntu 24.04.4 LTS (DGX OS)",
-            "gpu": "NVIDIA GB10, 580.126.09",
-        }
-        _host_info_cache[host] = {"ts": now, "data": info}
-        return info
 
     cmd = "hostname && hostname -I | awk '{print $1}' && uname -r && (lsb_release -d 2>/dev/null | cut -f2- || cat /etc/os-release | grep PRETTY_NAME | cut -d'\"' -f2) && nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>/dev/null | head -1"
     r = await ssh_pool.run_command(host, cmd)

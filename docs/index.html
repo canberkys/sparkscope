@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GB10 Cluster Dashboard</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥</text></svg>">
+</head>
+<body x-data="dashboard" class="min-h-screen">
+
+    <!-- Reconnecting Banner -->
+    <div x-show="reconnecting" x-cloak class="reconnect-banner fixed top-0 left-0 right-0 z-50">
+        Connection lost — reconnecting...
+    </div>
+
+    <!-- ===== TOP BAR ===== -->
+    <header class="sticky top-0 z-40 top-bar px-6 py-3">
+        <div class="flex items-center justify-between max-w-[1800px] mx-auto">
+            <div class="flex items-center gap-3">
+                <img src="device.svg" alt="Dell GB10" class="h-7 rounded opacity-80">
+                <span class="text-lg font-bold gradient-text">GB10 Dashboard</span>
+                <template x-if="connected && timeRange === 'live'">
+                    <div class="flex items-center gap-1.5 ml-2">
+                        <span class="live-dot"></span>
+                        <span class="text-xs font-semibold text-emerald-400 tracking-wider">LIVE</span>
+                    </div>
+                </template>
+                <template x-if="connected && timeRange !== 'live'">
+                    <div class="flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded" style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.25);">
+                        <svg class="w-3 h-3 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-2 0v6a1 1 0 102 0V7zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V7z" clip-rule="evenodd"/></svg>
+                        <span class="text-xs font-semibold text-yellow-400 tracking-wider">HISTORICAL</span>
+                    </div>
+                </template>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-xs text-slate-500 font-mono" x-text="currentTime"></span>
+                <!-- Alert bell -->
+                <div class="relative">
+                    <button @click="showAlerts = !showAlerts; loadAlerts()" class="text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-slate-800/50">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                        <span x-show="activeAlertCount > 0" class="alert-badge absolute -top-1 -right-1" x-text="activeAlertCount"></span>
+                    </button>
+                    <div x-show="showAlerts" @click.away="showAlerts = false" x-cloak class="absolute right-0 top-12 w-80 card card-glow shadow-2xl z-50 max-h-96 overflow-y-auto">
+                        <div class="text-sm font-semibold text-slate-300 mb-3">Alerts</div>
+                        <template x-if="alerts.active && alerts.active.length > 0">
+                            <div>
+                                <template x-for="a in alerts.active" :key="a.id">
+                                    <div class="flex items-start justify-between gap-2 py-2 border-b border-slate-700/30">
+                                        <div>
+                                            <span class="text-xs font-semibold" :class="a.severity === 'critical' ? 'text-red-400' : 'text-yellow-400'" x-text="a.severity.toUpperCase()"></span>
+                                            <span class="text-xs text-slate-500 ml-1" x-text="a.host"></span>
+                                            <div class="text-xs text-slate-300 mt-0.5" x-text="a.message"></div>
+                                        </div>
+                                        <button @click="resolveAlert(a.id)" class="text-xs text-slate-500 hover:text-green-400 shrink-0">Resolve</button>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                        <template x-if="!alerts.active || alerts.active.length === 0">
+                            <div class="text-xs text-slate-500 py-2">No active alerts</div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-[1800px] mx-auto px-4 py-4 space-y-4 relative z-1">
+
+        <!-- ===== LOADING STATE ===== -->
+        <template x-if="loading">
+            <div class="loading-screen">
+                <img src="device.svg" alt="Dell GB10" class="h-16 rounded-lg opacity-60">
+                <div class="loading-spinner"></div>
+                <div class="text-sm text-slate-500">Connecting to GB10 cluster...</div>
+                <div class="text-xs text-slate-600">Establishing SSH connections</div>
+            </div>
+        </template>
+
+        <template x-if="!loading">
+        <div class="space-y-4">
+
+        <!-- ===== CLUSTER SUMMARY ===== -->
+        <div class="card card-glow summary-bar flex flex-wrap items-center gap-5 px-6 py-3">
+            <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                <span class="text-xs text-slate-500 uppercase tracking-wider font-semibold">Cluster</span>
+            </div>
+
+            <!-- CPU with sparkline -->
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-slate-500">CPU</span>
+                <span class="font-bold text-sm text-cyan-400" x-text="clusterAvg('cpu.usage_pct').toFixed(0) + '%'"></span>
+                <canvas id="spark-cpu-usage_pct" class="sparkline-container"></canvas>
+            </div>
+
+            <!-- GPU with sparkline -->
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-slate-500">GPU</span>
+                <span class="font-bold text-sm text-purple-400" x-text="clusterAvg('gpu.util_pct').toFixed(0) + '%'"></span>
+                <canvas id="spark-gpu-util_pct" class="sparkline-container"></canvas>
+            </div>
+
+            <!-- Power with sparkline -->
+            <div class="flex items-center gap-2">
+                <svg class="w-3.5 h-3.5 text-orange-500/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span class="font-bold text-sm text-orange-400" x-text="clusterTotal('gpu.power_draw_w').toFixed(0) + 'W'"></span>
+                <canvas id="spark-gpu-power_draw_w" class="sparkline-container"></canvas>
+            </div>
+
+            <!-- Temp with sparkline -->
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-slate-500">Temp</span>
+                <span class="font-bold text-sm" :class="clusterMax('cpu.temp_max_c') >= 75 ? 'text-yellow-400' : 'text-green-400'"
+                      x-text="clusterMax('cpu.temp_max_c').toFixed(0) + '°C'"></span>
+                <canvas id="spark-cpu-temp_max_c" class="sparkline-container"></canvas>
+            </div>
+
+            <!-- Memory -->
+            <div class="flex items-center gap-1.5">
+                <span class="text-xs text-slate-500">Mem</span>
+                <span class="font-bold text-sm text-cyan-400"
+                      x-text="formatBytes(clusterTotal('memory.total_kb') - clusterTotal('memory.available_kb')) + ' / ' + formatBytes(clusterTotal('memory.total_kb'))"></span>
+            </div>
+
+            <!-- Procs -->
+            <div class="flex items-center gap-1.5">
+                <span class="text-xs text-slate-500">Procs</span>
+                <span class="font-bold text-sm text-slate-300" x-text="clusterTotal('system.process_count').toFixed(0)"></span>
+            </div>
+
+            <!-- Time range -->
+            <div class="flex items-center gap-1.5">
+                <template x-for="opt in timeRangeOptions" :key="opt.value">
+                    <button @click="changeTimeRange(opt.value)" class="tab-btn"
+                            :class="timeRange === opt.value ? 'active' : ''">
+                        <span x-show="opt.value === 'live' && timeRange === 'live'" class="live-dot" style="width:6px;height:6px;"></span>
+                        <span x-text="opt.label"></span>
+                    </button>
+                </template>
+                <template x-if="timeRange !== 'live'">
+                    <button @click="loadHistoricalCharts()" class="tab-btn" title="Refresh historical data" style="color:#fbbf24;border:1px solid rgba(251,191,36,0.3);">
+                        <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        Yenile
+                    </button>
+                </template>
+            </div>
+
+            <!-- Host dots -->
+            <div class="ml-auto flex items-center gap-4">
+                <template x-for="[name, host] in Object.entries(hosts)" :key="name">
+                    <button @click="highlightHost(name)" class="flex items-center gap-2 hover:bg-slate-700/20 rounded-lg px-3 py-1.5 transition">
+                        <span class="status-dot" :class="host.online ? 'online' : 'offline'" style="width:8px;height:8px;"></span>
+                        <span class="text-xs font-medium" x-text="host.display_name"></span>
+                        <span class="text-xs text-slate-600" x-text="host.online ? formatUptime(host.metrics?.['system.uptime_seconds']) : 'offline'"></span>
+                    </button>
+                </template>
+            </div>
+        </div>
+
+        <!-- ===== HOST PANELS ===== -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 host-grid">
+            <template x-for="[name, host] in Object.entries(hosts)" :key="name">
+                <div :id="'host-' + name" class="card host-panel space-y-3"
+                     :class="highlightedHost === name ? 'highlighted' : ''">
+
+                    <!-- Host Header -->
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <img src="device.svg" alt="" class="device-img" :class="!host.online ? 'offline' : ''">
+                            <div>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="status-dot" :class="host.online ? 'online' : 'offline'" style="width:8px;height:8px;"></span>
+                                    <span class="font-semibold text-sm" x-text="host.display_name"></span>
+                                    <span class="text-xs text-slate-600" x-text="'(' + name + ')'"></span>
+                                    <template x-if="hostInfo[name]?.management_ip">
+                                        <span class="text-xs font-mono px-2 py-0.5 rounded" style="background: rgba(34,211,238,0.1); color: #67e8f9; border: 1px solid rgba(34,211,238,0.2);" :title="'Management IP'" x-text="hostInfo[name].management_ip"></span>
+                                    </template>
+                                    <template x-if="hostInfo[name]?.cluster_ip">
+                                        <span class="text-xs font-mono px-2 py-0.5 rounded" style="background: rgba(167,139,250,0.1); color: #c4b5fd; border: 1px solid rgba(167,139,250,0.2);" :title="'Cluster IP'" x-text="hostInfo[name].cluster_ip"></span>
+                                    </template>
+                                    <template x-if="hostInfo[name]?.hostname">
+                                        <span class="text-xs text-slate-500 font-mono" x-text="hostInfo[name].hostname"></span>
+                                    </template>
+                                    <template x-if="host.vllm && host.vllm.model">
+                                        <span class="llm-badge" :title="'vLLM — ' + host.vllm.container + ' on port ' + host.vllm.port">
+                                            <span class="llm-dot"></span>
+                                            <span x-text="host.vllm.model"></span>
+                                        </span>
+                                    </template>
+                                </div>
+                                <div class="text-xs text-slate-500 mt-1 flex items-center gap-3 flex-wrap">
+                                    <span x-show="host.online" x-text="'↑ ' + formatUptime(host.metrics?.['system.uptime_seconds'])"></span>
+                                    <span x-show="!host.online" class="text-red-400">OFFLINE</span>
+                                    <template x-if="hostInfo[name]?.kernel">
+                                        <span class="font-mono" :title="'Kernel: ' + hostInfo[name].kernel" x-text="'Kernel ' + (hostInfo[name].kernel.split('-')[0] || hostInfo[name].kernel)"></span>
+                                    </template>
+                                    <span class="font-mono text-purple-400/70" :title="hostInfo[name]?.gpu || ''">Dell Pro Max with GB10</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span x-show="host.online" class="text-xs text-slate-600" x-text="(host.metrics?.['system.process_count'] ?? 0) + ' procs'"></span>
+                            <div class="relative" x-data="{ open: false }">
+                                <button @click="open = !open" class="kebab-btn">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>
+                                </button>
+                                <div x-show="open" @click.away="open = false" x-cloak class="kebab-dropdown">
+                                    <button class="kebab-item" @click="executeCommand('uptime', name); open=false">Show Uptime</button>
+                                    <button class="kebab-item" @click="executeCommand('nvidia_smi_full', name); open=false">nvidia-smi</button>
+                                    <button class="kebab-item" @click="executeCommand('interface_status', name); open=false">Network Status</button>
+                                    <button class="kebab-item" @click="executeCommand('dmesg_tail', name); open=false">dmesg (last 50)</button>
+                                    <div class="border-t border-slate-700/50 my-1"></div>
+                                    <button class="kebab-item destructive" @click="executeCommand('reboot', name); open=false">Reboot</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Offline state -->
+                    <template x-if="!host.online">
+                        <div class="text-center py-12 text-slate-600">
+                            <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a5 5 0 01-7.072 0l2.829-2.829M3 3l3.536 3.536"/></svg>
+                            <div class="text-sm">Cannot reach host</div>
+                        </div>
+                    </template>
+
+                    <template x-if="host.online">
+                        <div class="space-y-3">
+
+                            <!-- vLLM Widget (only if active) -->
+                            <template x-if="host.vllm && host.vllm.active">
+                                <div>
+                                    <div class="widget-header" style="margin-bottom:6px;">
+                                        <svg class="widget-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:#a78bfa;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                                        <span class="widget-title">LLM Inference (vLLM)</span>
+                                        <span class="ml-auto text-xs text-slate-500 font-mono" x-text="'Max ' + (host.vllm.max_model_len ? (host.vllm.max_model_len / 1024).toFixed(0) + 'K ctx' : '—')"></span>
+                                    </div>
+                                    <div class="llm-card">
+                                        <div class="llm-stat">
+                                            <div class="llm-stat-value" x-text="(host.vllm.gen_tokens_per_s ?? 0).toFixed(1)"></div>
+                                            <div class="llm-stat-label">Gen Tok/s</div>
+                                        </div>
+                                        <div class="llm-stat">
+                                            <div class="llm-stat-value" :style="(host.vllm.requests_running ?? 0) > 0 ? 'color:#34d399' : ''" x-text="(host.vllm.requests_running ?? 0).toFixed(0)"></div>
+                                            <div class="llm-stat-label">Active Req</div>
+                                        </div>
+                                        <div class="llm-stat">
+                                            <div class="llm-stat-value" :style="(host.vllm.requests_waiting ?? 0) > 0 ? 'color:#fbbf24' : ''" x-text="(host.vllm.requests_waiting ?? 0).toFixed(0)"></div>
+                                            <div class="llm-stat-label">Queued</div>
+                                        </div>
+                                        <div class="llm-stat">
+                                            <div class="llm-stat-value" x-text="(host.vllm.kv_cache_pct ?? 0).toFixed(1) + '%'"></div>
+                                            <div class="llm-stat-label">KV Cache</div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-4 text-xs text-slate-600 mt-2 flex-wrap">
+                                        <span>Prefix Cache: <span class="text-slate-400" x-text="(host.vllm.prefix_cache_hit_pct ?? 0).toFixed(1) + '%'"></span></span>
+                                        <span>Total Generated: <span class="text-slate-400 font-mono" x-text="((host.vllm.generation_tokens_total ?? 0) / 1000).toFixed(1) + 'K tok'"></span></span>
+                                        <span>Total Prompt: <span class="text-slate-400 font-mono" x-text="((host.vllm.prompt_tokens_total ?? 0) / 1000).toFixed(1) + 'K tok'"></span></span>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- GPU Health mini-strip (ECC, Throttle, NVMe) -->
+                            <div class="flex items-center gap-3 text-xs flex-wrap px-2 py-1.5 rounded" style="background: rgba(15, 23, 42, 0.3);">
+                                <span class="text-slate-500">ECC:</span>
+                                <span :class="(host.metrics?.['gpu.ecc_uncorrected'] ?? 0) > 0 ? 'text-red-400 font-bold' : 'text-slate-300'" class="font-mono" :title="'Corrected / Uncorrected'">
+                                    <span x-text="(host.metrics?.['gpu.ecc_corrected'] ?? 0).toFixed(0)"></span>/<span x-text="(host.metrics?.['gpu.ecc_uncorrected'] ?? 0).toFixed(0)"></span>
+                                </span>
+                                <span class="text-slate-600">|</span>
+                                <span class="text-slate-500">Throttle:</span>
+                                <span :class="(host.metrics?.['gpu.throttle_active'] ?? 0) ? 'text-yellow-400' : 'text-green-400'" class="font-mono" x-text="(host.metrics?.['gpu.throttle_active'] ?? 0) ? 'Active' : 'None'"></span>
+                                <template x-if="host.metrics?.['nvme.temp_c']">
+                                    <span class="text-slate-600">|</span>
+                                </template>
+                                <template x-if="host.metrics?.['nvme.temp_c']">
+                                    <span class="text-slate-500">NVMe:</span>
+                                </template>
+                                <template x-if="host.metrics?.['nvme.temp_c']">
+                                    <span class="text-slate-300 font-mono" x-text="host.metrics['nvme.temp_c'].toFixed(0) + '°C'"></span>
+                                </template>
+                                <template x-if="host.metrics?.['nvme.used_pct'] !== undefined">
+                                    <span class="text-slate-500">Wear:</span>
+                                </template>
+                                <template x-if="host.metrics?.['nvme.used_pct'] !== undefined">
+                                    <span class="text-slate-300 font-mono" x-text="host.metrics['nvme.used_pct'].toFixed(0) + '%'"></span>
+                                </template>
+                                <template x-if="hostInfo[name]?.cluster_peer_ip">
+                                    <span class="text-slate-600 ml-auto">Peer: <span class="font-mono text-slate-400" x-text="hostInfo[name].cluster_peer_ip"></span></span>
+                                </template>
+                            </div>
+
+                            <!-- Hero Metrics -->
+                            <div class="grid grid-cols-4 gap-2">
+                                <div class="hero-metric" :title="'CPU Usage: ' + (host.metrics?.['cpu.usage_pct'] ?? 0).toFixed(2) + '%\nLoad 1m: ' + (host.metrics?.['cpu.load_1m'] ?? 0).toFixed(2)">
+                                    <div class="text-lg font-bold text-cyan-400" x-text="(host.metrics?.['cpu.usage_pct'] ?? 0).toFixed(1) + '%'"></div>
+                                    <div class="metric-label">CPU</div>
+                                </div>
+                                <div class="hero-metric" :title="'GPU Utilization: ' + (host.metrics?.['gpu.util_pct'] ?? 0).toFixed(2) + '%\nSM Clock: ' + (host.metrics?.['gpu.sm_clock_mhz'] ?? 0).toFixed(0) + ' MHz'">
+                                    <div class="text-lg font-bold text-purple-400" x-text="(host.metrics?.['gpu.util_pct'] ?? 0).toFixed(0) + '%'"></div>
+                                    <div class="metric-label">GPU</div>
+                                </div>
+                                <div class="hero-metric" :title="'CPU Temp (max thermal zone): ' + (host.metrics?.['cpu.temp_max_c'] ?? 0).toFixed(1) + '°C\nGPU: ' + (host.metrics?.['gpu.temp_c'] ?? 0).toFixed(1) + '°C'">
+                                    <div class="text-lg font-bold" :class="tempColor(host.metrics?.['cpu.temp_max_c'] ?? 0)" x-text="(host.metrics?.['cpu.temp_max_c'] ?? 0).toFixed(0) + '°C'"></div>
+                                    <div class="metric-label">CPU Temp</div>
+                                </div>
+                                <div class="hero-metric" :title="'GPU Power Draw: ' + (host.metrics?.['gpu.power_draw_w'] ?? 0).toFixed(2) + ' W\nPower Limit: ' + (host.metrics?.['gpu.power_limit_w'] ?? 0).toFixed(0) + ' W'">
+                                    <div class="text-lg font-bold text-orange-400" x-text="(host.metrics?.['gpu.power_draw_w'] ?? 0).toFixed(1) + 'W'"></div>
+                                    <div class="metric-label">Power</div>
+                                </div>
+                            </div>
+
+                            <!-- CPU -->
+                            <details class="widget" open @toggle="$el.open && renderChart('cpu-' + name)">
+                                <summary>
+                                    <svg class="widget-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="widget-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+                                    <span class="widget-title">CPU</span>
+                                    <div class="ml-auto flex items-center gap-3 text-xs">
+                                        <span class="text-slate-500">Load:
+                                            <span class="text-slate-300" x-text="(host.metrics?.['cpu.load_1m'] ?? 0).toFixed(2)"></span> /
+                                            <span class="text-slate-400" x-text="(host.metrics?.['cpu.load_5m'] ?? 0).toFixed(2)"></span> /
+                                            <span class="text-slate-500" x-text="(host.metrics?.['cpu.load_15m'] ?? 0).toFixed(2)"></span>
+                                        </span>
+                                    </div>
+                                </summary>
+                                <div class="widget-body">
+                                    <div class="chart-container"><canvas :id="'cpu-' + name"></canvas></div>
+                                </div>
+                            </details>
+
+                            <!-- GPU -->
+                            <details class="widget" open @toggle="$el.open && renderChart('gpu-' + name)">
+                                <summary>
+                                    <svg class="widget-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="widget-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                                    <span class="widget-title">GPU</span>
+                                    <div class="ml-auto flex items-center gap-3 text-xs">
+                                        <span :class="tempColor(host.metrics?.['gpu.temp_c'] ?? 0)" x-text="(host.metrics?.['gpu.temp_c'] ?? 0).toFixed(0) + '°C'"></span>
+                                        <span class="text-slate-500" x-text="(host.metrics?.['gpu.sm_clock_mhz'] ?? 0).toFixed(0) + ' MHz'"></span>
+                                    </div>
+                                </summary>
+                                <div class="widget-body">
+                                    <div class="chart-container"><canvas :id="'gpu-' + name"></canvas></div>
+                                    <div class="mt-2 flex items-center justify-between">
+                                        <span class="text-xs text-slate-600 italic">Unified Memory (GPU + CPU shared)</span>
+                                        <span class="text-xs text-purple-400/60" x-text="(host.metrics?.['gpu.power_draw_w'] ?? 0).toFixed(1) + 'W'"></span>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <!-- Memory -->
+                            <details class="widget" open>
+                                <summary>
+                                    <svg class="widget-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="widget-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                                    <span class="widget-title">Memory</span>
+                                    <span class="ml-auto text-xs" :style="'color:' + usageColor(host.metrics?.['memory.used_pct'] ?? 0)" x-text="(host.metrics?.['memory.used_pct'] ?? 0).toFixed(1) + '%'"></span>
+                                </summary>
+                                <div class="widget-body">
+                                    <div class="grid grid-cols-3 gap-2 text-xs mb-2">
+                                        <div class="hero-metric !p-2">
+                                            <div class="text-cyan-400 font-semibold text-sm" x-text="formatBytes(host.metrics?.['memory.available_kb'] ?? 0)"></div>
+                                            <div class="text-slate-600 text-xs mt-0.5">Available</div>
+                                        </div>
+                                        <div class="hero-metric !p-2">
+                                            <div class="text-yellow-400 font-semibold text-sm" x-text="formatBytes((host.metrics?.['memory.cached_kb'] ?? 0) + (host.metrics?.['memory.buffers_kb'] ?? 0))"></div>
+                                            <div class="text-slate-600 text-xs mt-0.5">Cached</div>
+                                        </div>
+                                        <div class="hero-metric !p-2">
+                                            <div class="text-slate-300 font-semibold text-sm" x-text="formatBytes(host.metrics?.['memory.total_kb'] ?? 0)"></div>
+                                            <div class="text-slate-600 text-xs mt-0.5">Total</div>
+                                        </div>
+                                    </div>
+                                    <div class="progress-bar"><div class="progress-fill" :style="'width:' + (host.metrics?.['memory.used_pct'] ?? 0) + '%; background: linear-gradient(90deg, ' + usageColor(host.metrics?.['memory.used_pct'] ?? 0) + ', ' + usageColor(host.metrics?.['memory.used_pct'] ?? 0) + '88)'"></div></div>
+                                    <template x-if="(host.metrics?.['memory.swap_total_kb'] ?? 0) > 0">
+                                        <div class="mt-1.5 flex items-center gap-2">
+                                            <span class="swap-badge">SWAP</span>
+                                            <span class="text-xs text-slate-500" x-text="formatBytes((host.metrics?.['memory.swap_total_kb'] ?? 0) - (host.metrics?.['memory.swap_free_kb'] ?? 0)) + ' / ' + formatBytes(host.metrics?.['memory.swap_total_kb'] ?? 0)"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </details>
+
+                            <!-- Disk -->
+                            <details class="widget" open @toggle="$el.open && renderChart('disk-' + name)">
+                                <summary>
+                                    <svg class="widget-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="widget-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7zm0 5h16"/></svg>
+                                    <span class="widget-title">Disk</span>
+                                    <span class="ml-auto text-xs text-slate-500" x-text="formatDiskBytes(host.metrics?.['disk.root_used_bytes'] ?? 0) + ' / ' + formatDiskBytes(host.metrics?.['disk.root_total_bytes'] ?? 0)"></span>
+                                </summary>
+                                <div class="widget-body">
+                                    <div class="progress-bar mb-2"><div class="progress-fill" :style="'width:' + (host.metrics?.['disk.root_used_pct'] ?? 0) + '%; background: linear-gradient(90deg, ' + usageColor(host.metrics?.['disk.root_used_pct'] ?? 0) + ', ' + usageColor(host.metrics?.['disk.root_used_pct'] ?? 0) + '88)'"></div></div>
+                                    <div class="chart-container" style="height:80px;"><canvas :id="'disk-' + name"></canvas></div>
+                                </div>
+                            </details>
+
+                            <!-- Network -->
+                            <details class="widget" open @toggle="$el.open && renderChart('net-' + name)">
+                                <summary>
+                                    <svg class="widget-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="widget-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"/></svg>
+                                    <span class="widget-title">Network</span>
+                                </summary>
+                                <div class="widget-body">
+                                    <div class="chart-container chart-container-lg"><canvas :id="'net-' + name"></canvas></div>
+                                </div>
+                            </details>
+
+                            <!-- Last Command -->
+                            <template x-if="lastCommandFor(name)">
+                                <div class="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(51,65,85,0.3);">
+                                    <svg class="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                    <span class="text-slate-500">Last command:</span>
+                                    <span :class="lastCommandFor(name).exit_code === 0 ? 'text-green-400' : 'text-red-400'" x-text="lastCommandFor(name).exit_code === 0 ? '✓' : '✗'"></span>
+                                    <span class="text-cyan-400 font-medium truncate" x-text="lastCommandFor(name).command_key"></span>
+                                    <span class="text-slate-600 ml-auto shrink-0" x-text="timeAgo(lastCommandFor(name).timestamp)"></span>
+                                </div>
+                            </template>
+
+                            <!-- Top Processes -->
+                            <details class="widget">
+                                <summary>
+                                    <svg class="widget-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    <svg class="widget-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                                    <span class="widget-title">Top Processes</span>
+                                </summary>
+                                <div class="widget-body">
+                                    <div class="overflow-x-auto">
+                                        <table class="proc-table">
+                                            <thead><tr><th>PID</th><th>User</th><th>CPU%</th><th>MEM%</th><th>Command</th></tr></thead>
+                                            <tbody>
+                                                <template x-for="p in (host.top_procs || []).slice(0, 8)" :key="p.pid">
+                                                    <tr>
+                                                        <td class="text-slate-500" x-text="p.pid"></td>
+                                                        <td class="text-slate-500" x-text="p.user"></td>
+                                                        <td :class="p.cpu_pct > 50 ? 'text-yellow-400' : 'text-slate-300'" x-text="p.cpu_pct.toFixed(1)"></td>
+                                                        <td class="text-slate-400" x-text="p.mem_pct.toFixed(1)"></td>
+                                                        <td class="text-slate-300 truncate max-w-[150px]" x-text="p.command"></td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <template x-if="host.gpu_procs && host.gpu_procs.length > 0">
+                                        <div class="mt-3 pt-3 border-t border-slate-700/30">
+                                            <div class="text-xs text-purple-400/60 font-medium mb-1.5">GPU Processes</div>
+                                            <table class="proc-table">
+                                                <thead><tr><th>PID</th><th>Process</th><th>VRAM</th></tr></thead>
+                                                <tbody>
+                                                    <template x-for="p in host.gpu_procs" :key="p.pid">
+                                                        <tr>
+                                                            <td class="text-slate-500" x-text="p.pid"></td>
+                                                            <td class="text-slate-300" x-text="p.name"></td>
+                                                            <td class="text-purple-400" x-text="p.mem_mb + ' MB'"></td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </template>
+                                </div>
+                            </details>
+
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- ===== COMMAND PANEL ===== -->
+        <div class="card card-glow">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <span class="text-sm font-semibold text-slate-300">Command Panel</span>
+                </div>
+                <select x-model="selectedHost" class="bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-500/50 backdrop-blur">
+                    <option value="all">All Hosts</option>
+                    <template x-for="[name, host] in Object.entries(hosts)" :key="name">
+                        <option :value="name" x-text="host.display_name + ' (' + name + ')'"></option>
+                    </template>
+                </select>
+            </div>
+            <div class="flex gap-2 mb-4 flex-wrap">
+                <template x-for="cat in commandCategories" :key="cat">
+                    <button class="tab-btn" :class="commandTab === cat ? 'active' : ''" @click="commandTab = cat" x-text="cat"></button>
+                </template>
+            </div>
+            <div class="flex flex-wrap gap-2 mb-4">
+                <template x-for="cmd in filteredCommands" :key="cmd.key">
+                    <button class="cmd-btn" :class="cmd.destructive ? 'destructive' : ''" @click="executeCommand(cmd.key, selectedHost)" :disabled="commandRunning">
+                        <span x-show="cmd.destructive" class="text-red-400 text-xs">!</span>
+                        <span x-text="cmd.label"></span>
+                    </button>
+                </template>
+            </div>
+            <!-- Recent commands -->
+            <div class="border-t border-slate-700/30 pt-3">
+                <div class="text-xs text-slate-600 mb-2 font-medium">Recent Commands</div>
+                <div class="space-y-1">
+                    <template x-for="cmd in recentCommands" :key="cmd.id">
+                        <div class="flex items-center gap-2 text-xs">
+                            <span :class="cmd.exit_code === 0 ? 'text-green-400' : 'text-red-400'" x-text="cmd.exit_code === 0 ? '✓' : '✗'"></span>
+                            <span class="text-slate-400" x-text="cmd.command_key"></span>
+                            <span class="text-slate-600" x-text="'on ' + cmd.host"></span>
+                            <span class="text-slate-700" x-text="timeAgo(cmd.timestamp)"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        </div>
+        </template>
+    </main>
+
+    <!-- ===== OUTPUT MODAL ===== -->
+    <div x-show="showOutputModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center modal-overlay" @click.self="showOutputModal = false">
+        <div class="modal-content p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    Command Output
+                </div>
+                <button @click="showOutputModal = false" class="text-slate-500 hover:text-white transition text-lg">&times;</button>
+            </div>
+            <template x-if="commandOutput">
+                <div>
+                    <template x-for="[host, result] in Object.entries(commandOutput)" :key="host">
+                        <div class="mb-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs font-semibold text-slate-400" x-text="host"></span>
+                                <span class="text-xs" :class="result.exit_code === 0 ? 'text-green-400' : 'text-red-400'" x-text="'exit ' + result.exit_code + ' (' + result.duration_ms + 'ms)'"></span>
+                            </div>
+                            <div class="cmd-output" x-text="result.stdout || result.stderr || '(no output)'"></div>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- ===== CONFIRMATION MODAL ===== -->
+    <div x-show="showCommandModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center modal-overlay" @click.self="showCommandModal = false">
+        <div class="modal-content p-6">
+            <div class="text-sm font-semibold text-red-400 mb-3 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                Confirmation Required
+            </div>
+            <p class="text-sm text-slate-300 mb-4" x-text="commandModalData?.cmd?.confirmation_text || 'Are you sure you want to run this command?'"></p>
+            <div class="text-xs text-slate-600 mb-4 font-mono bg-slate-900/50 rounded-lg p-3">
+                $ <span class="text-slate-400" x-text="commandModalData?.cmd?.command"></span>
+            </div>
+            <div class="flex gap-3 justify-end">
+                <button @click="showCommandModal = false" class="cmd-btn">Cancel</button>
+                <button @click="confirmCommand()" class="cmd-btn destructive">Run</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TOASTS ===== -->
+    <div class="fixed bottom-4 right-4 z-50 space-y-2">
+        <template x-for="t in toasts" :key="t.id">
+            <div class="toast flex items-center gap-2" :class="t.type === 'error' ? 'border-red-500/20' : 'border-green-500/20'">
+                <span :class="t.type === 'error' ? 'text-red-400' : 'text-green-400'" x-text="t.type === 'error' ? '✗' : '✓'"></span>
+                <span class="text-sm text-slate-300" x-text="t.message"></span>
+            </div>
+        </template>
+    </div>
+
+    <script src="demo_mock.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
