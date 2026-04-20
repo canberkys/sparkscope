@@ -11,6 +11,14 @@
 </head>
 <body x-data="dashboard" class="min-h-screen">
 
+    <!-- TV / NOC mode badges (show only when body has .tv-mode) -->
+    <div class="tv-badge">
+        <span class="live-dot" style="width:8px;height:8px;"></span>
+        <span>TV MODE</span>
+        <span style="color: var(--text-dim); font-weight: 400; letter-spacing: normal;" x-text="currentTime"></span>
+    </div>
+    <div class="tv-exit-hint">Press <kbd style="background:rgba(71,85,105,0.3);padding:1px 6px;border-radius:4px;">Esc</kbd> to exit</div>
+
     <!-- Reconnecting Banner -->
     <div x-show="reconnecting" x-cloak class="reconnect-banner fixed top-0 left-0 right-0 z-50">
         Connection lost — reconnecting...
@@ -37,6 +45,12 @@
             </div>
             <div class="flex items-center gap-4">
                 <span class="text-xs text-slate-500 font-mono" x-text="currentTime"></span>
+                <!-- TV mode toggle -->
+                <button @click="toggleTvMode()" class="text-slate-400 hover:text-cyan-400 transition p-1.5 rounded-lg hover:bg-slate-800/50" title="Toggle TV / NOC Mode (Esc to exit)">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/>
+                    </svg>
+                </button>
                 <!-- Alert bell -->
                 <div class="relative">
                     <button @click="showAlerts = !showAlerts; loadAlerts()" class="text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-slate-800/50">
@@ -85,9 +99,26 @@
 
         <!-- ===== CLUSTER SUMMARY ===== -->
         <div class="card card-glow summary-bar flex flex-wrap items-center gap-5 px-6 py-3">
-            <div class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-                <span class="text-xs text-slate-500 uppercase tracking-wider font-semibold">Cluster</span>
+            <!-- Health Dial (hero) -->
+            <div class="health-dial-wrap">
+                <!-- viewBox has 10px padding each side so drop-shadow doesn't clip. Arc still at 25..145 in x. -->
+                <svg class="health-dial" viewBox="0 0 180 105" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Background arc (upper semicircle, r=65, center=(90,85)) -->
+                    <path class="health-dial-bg" d="M 25 85 A 65 65 0 0 1 155 85"/>
+                    <!-- Foreground (value) arc -->
+                    <path class="health-dial-fg"
+                          :class="healthLevel"
+                          d="M 25 85 A 65 65 0 0 1 155 85"
+                          :style="'stroke-dashoffset:' + healthDashOffset"/>
+                    <!-- Score text -->
+                    <text class="health-dial-score" x="90" y="65" x-text="healthScore"></text>
+                    <!-- Status label -->
+                    <text class="health-dial-label" :class="healthLevel" x="90" y="83" x-text="healthLabel"></text>
+                </svg>
+                <div class="health-dial-caption">
+                    <span class="cluster-name">Cluster</span>
+                    <span class="cluster-hosts" x-text="Object.keys(hosts).length + ' nodes'"></span>
+                </div>
             </div>
 
             <!-- CPU with sparkline -->
@@ -162,13 +193,20 @@
         </div>
 
         <!-- ===== HOST PANELS ===== -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 host-grid">
+        <div class="grid gap-4 host-grid"
+             :class="{
+                 'grid-cols-1': Object.keys(hosts).length === 1,
+                 'grid-cols-1 lg:grid-cols-2': Object.keys(hosts).length === 2,
+                 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3': Object.keys(hosts).length === 3,
+                 'grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2': Object.keys(hosts).length === 4,
+                 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3': Object.keys(hosts).length >= 5
+             }">
             <template x-for="[name, host] in Object.entries(hosts)" :key="name">
-                <div :id="'host-' + name" class="card host-panel space-y-3"
-                     :class="highlightedHost === name ? 'highlighted' : ''">
+                <div :id="'host-' + name" :data-host="name" class="card host-panel space-y-3"
+                     :class="[highlightedHost === name ? 'highlighted' : '', isHostExpanded(name) ? 'host-expanded' : 'host-collapsed']">
 
-                    <!-- Host Header -->
-                    <div class="flex items-center justify-between">
+                    <!-- Host Header — click anywhere (outside kebab) to toggle expand/collapse -->
+                    <div class="flex items-center justify-between host-header-clickable">
                         <div class="flex items-center gap-3">
                             <img src="device.svg" alt="" class="device-img" :class="!host.online ? 'offline' : ''">
                             <div>
@@ -204,8 +242,17 @@
                         </div>
                         <div class="flex items-center gap-2">
                             <span x-show="host.online" class="text-xs text-slate-600" x-text="(host.metrics?.['system.process_count'] ?? 0) + ' procs'"></span>
+                            <!-- Expand / collapse toggle (prominent chevron pill) -->
+                            <button type="button"
+                                    class="host-expand-btn"
+                                    :title="isHostExpanded(name) ? 'Collapse panel' : 'Expand panel'">
+                                <svg class="w-4 h-4 transition-transform" :class="isHostExpanded(name) ? '' : '-rotate-90'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                                <span class="expand-label" x-text="isHostExpanded(name) ? 'Collapse' : 'Expand'"></span>
+                            </button>
                             <div class="relative" x-data="{ open: false }">
-                                <button @click="open = !open" class="kebab-btn">
+                                <button @click.stop="open = !open" class="kebab-btn">
                                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>
                                 </button>
                                 <div x-show="open" @click.away="open = false" x-cloak class="kebab-dropdown">
@@ -230,6 +277,9 @@
 
                     <template x-if="host.online">
                         <div class="space-y-3">
+
+                            <!-- === Collapsed-hidden block #1: vLLM + GPU Health (before hero metrics) === -->
+                            <div x-show="isHostExpanded(name)" x-transition.opacity.duration.200ms>
 
                             <!-- vLLM Widget (only if active) -->
                             <template x-if="host.vllm && host.vllm.active">
@@ -294,25 +344,30 @@
                                 </template>
                             </div>
 
-                            <!-- Hero Metrics -->
+                            </div>  <!-- /end collapsed-hidden block #1 -->
+
+                            <!-- Hero Metrics (always visible — primary glance info) -->
                             <div class="grid grid-cols-4 gap-2">
-                                <div class="hero-metric" :title="'CPU Usage: ' + (host.metrics?.['cpu.usage_pct'] ?? 0).toFixed(2) + '%\nLoad 1m: ' + (host.metrics?.['cpu.load_1m'] ?? 0).toFixed(2)">
+                                <div class="hero-metric" data-hero="cpu" :title="'CPU Usage: ' + (host.metrics?.['cpu.usage_pct'] ?? 0).toFixed(2) + '%\nLoad 1m: ' + (host.metrics?.['cpu.load_1m'] ?? 0).toFixed(2)">
                                     <div class="text-lg font-bold text-cyan-400" x-text="(host.metrics?.['cpu.usage_pct'] ?? 0).toFixed(1) + '%'"></div>
                                     <div class="metric-label">CPU</div>
                                 </div>
-                                <div class="hero-metric" :title="'GPU Utilization: ' + (host.metrics?.['gpu.util_pct'] ?? 0).toFixed(2) + '%\nSM Clock: ' + (host.metrics?.['gpu.sm_clock_mhz'] ?? 0).toFixed(0) + ' MHz'">
+                                <div class="hero-metric" data-hero="gpu" :title="'GPU Utilization: ' + (host.metrics?.['gpu.util_pct'] ?? 0).toFixed(2) + '%\nSM Clock: ' + (host.metrics?.['gpu.sm_clock_mhz'] ?? 0).toFixed(0) + ' MHz'">
                                     <div class="text-lg font-bold text-purple-400" x-text="(host.metrics?.['gpu.util_pct'] ?? 0).toFixed(0) + '%'"></div>
                                     <div class="metric-label">GPU</div>
                                 </div>
-                                <div class="hero-metric" :title="'CPU Temp (max thermal zone): ' + (host.metrics?.['cpu.temp_max_c'] ?? 0).toFixed(1) + '°C\nGPU: ' + (host.metrics?.['gpu.temp_c'] ?? 0).toFixed(1) + '°C'">
+                                <div class="hero-metric" data-hero="cpu-temp" :title="'CPU Temp (max thermal zone): ' + (host.metrics?.['cpu.temp_max_c'] ?? 0).toFixed(1) + '°C\nGPU: ' + (host.metrics?.['gpu.temp_c'] ?? 0).toFixed(1) + '°C'">
                                     <div class="text-lg font-bold" :class="tempColor(host.metrics?.['cpu.temp_max_c'] ?? 0)" x-text="(host.metrics?.['cpu.temp_max_c'] ?? 0).toFixed(0) + '°C'"></div>
                                     <div class="metric-label">CPU Temp</div>
                                 </div>
-                                <div class="hero-metric" :title="'GPU Power Draw: ' + (host.metrics?.['gpu.power_draw_w'] ?? 0).toFixed(2) + ' W\nPower Limit: ' + (host.metrics?.['gpu.power_limit_w'] ?? 0).toFixed(0) + ' W'">
+                                <div class="hero-metric" data-hero="power" :title="'GPU Power Draw: ' + (host.metrics?.['gpu.power_draw_w'] ?? 0).toFixed(2) + ' W\nPower Limit: ' + (host.metrics?.['gpu.power_limit_w'] ?? 0).toFixed(0) + ' W'">
                                     <div class="text-lg font-bold text-orange-400" x-text="(host.metrics?.['gpu.power_draw_w'] ?? 0).toFixed(1) + 'W'"></div>
                                     <div class="metric-label">Power</div>
                                 </div>
                             </div>
+
+                            <!-- === Collapsed-hidden block #2: all charts + widgets (after hero metrics) === -->
+                            <div x-show="isHostExpanded(name)" class="space-y-3">
 
                             <!-- CPU -->
                             <details class="widget" open @toggle="$el.open && renderChart('cpu-' + name)">
@@ -467,6 +522,8 @@
                                 </div>
                             </details>
 
+                            </div>  <!-- /end collapsed-hidden block #2 -->
+
                         </div>
                     </template>
                 </div>
@@ -474,7 +531,7 @@
         </div>
 
         <!-- ===== COMMAND PANEL ===== -->
-        <div class="card card-glow">
+        <div class="card card-glow" data-hide-in-tv>
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-2">
                     <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -576,5 +633,25 @@
 
     <script src="demo_mock.js"></script>
     <script src="app.js"></script>
+    <script>
+        // Host expand/collapse click delegation — bypasses Alpine binding to avoid scope issues.
+        document.addEventListener('click', function (e) {
+            const target = e.target.closest('.host-header-clickable, .host-expand-btn');
+            if (!target) return;
+            if (e.target.closest('.kebab-dropdown') || e.target.closest('.kebab-btn:not(.host-expand-btn)')) return;
+            const panel = target.closest('[data-host]');
+            if (!panel) return;
+            const hostName = panel.dataset.host;
+            try {
+                const root = document.querySelector('[x-data]');
+                const data = window.Alpine && window.Alpine.$data ? window.Alpine.$data(root) : null;
+                if (data && typeof data.toggleHostExpanded === 'function') {
+                    data.toggleHostExpanded(hostName);
+                }
+            } catch (err) {
+                console.error('[sparkscope] toggle failed:', err);
+            }
+        });
+    </script>
 </body>
 </html>

@@ -72,6 +72,306 @@ body::before {
 .card:hover { border-color: var(--glass-border-hover); }
 .card-glow { box-shadow: 0 0 40px var(--glass-glow), inset 0 1px 0 rgba(255,255,255,0.03); }
 
+/* ===== HEALTH DIAL (hero gauge) ===== */
+.health-dial-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+}
+.health-dial {
+    width: 168px;
+    height: 98px;   /* matches viewBox 180:105 ≈ 1.714 ratio */
+    display: block;
+    overflow: visible;  /* allow drop-shadow glow to extend */
+}
+.health-dial-bg {
+    fill: none;
+    stroke: rgba(51, 65, 85, 0.5);
+    stroke-width: 10;
+    stroke-linecap: round;
+}
+.health-dial-fg {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+    stroke-dasharray: 204.2;
+    /* Smooth progress + color transition */
+    transition: stroke-dashoffset 0.9s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.4s ease;
+    filter: drop-shadow(0 0 6px currentColor);
+}
+.health-dial-score {
+    font-family: 'Inter', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    fill: var(--text);
+    text-anchor: middle;
+    dominant-baseline: middle;
+    font-variant-numeric: tabular-nums;
+}
+.health-dial-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    text-transform: uppercase;
+}
+.health-dial-label.ok { fill: #34d399; }
+.health-dial-label.warn { fill: #fbbf24; }
+.health-dial-label.crit { fill: #f87171; }
+.health-dial-label.dead { fill: #94a3b8; }
+
+.health-dial-fg.ok { stroke: #34d399; }
+.health-dial-fg.warn { stroke: #fbbf24; }
+.health-dial-fg.crit {
+    stroke: #f87171;
+    animation: dial-pulse-crit 1.8s ease-in-out infinite;
+}
+.health-dial-fg.dead { stroke: #475569; filter: none; }
+
+@keyframes dial-pulse-crit {
+    0%, 100% { filter: drop-shadow(0 0 6px #f87171); }
+    50% { filter: drop-shadow(0 0 14px #f87171) drop-shadow(0 0 22px rgba(248,113,113,0.4)); }
+}
+
+/* ===== HOST EXPAND / COLLAPSE ===== */
+/* Make the whole host header a click target */
+.host-header-clickable {
+    cursor: pointer;
+    user-select: none;
+    border-radius: 8px;
+    padding: 4px;
+    margin: -4px;
+    transition: background 0.15s;
+}
+.host-header-clickable:hover {
+    background: rgba(51, 65, 85, 0.25);
+}
+
+/* Prominent pill-style toggle button (not just icon) */
+.host-expand-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px 5px 8px;
+    background: rgba(34, 211, 238, 0.08);
+    border: 1px solid rgba(34, 211, 238, 0.25);
+    border-radius: 999px;
+    color: #67e8f9;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.12s;
+}
+.host-expand-btn:hover {
+    background: rgba(34, 211, 238, 0.16);
+    border-color: rgba(34, 211, 238, 0.5);
+}
+.host-expand-btn:active {
+    transform: scale(0.96);
+}
+.host-expand-btn svg {
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.expand-label {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Collapsed host: reduce panel padding so it feels compact */
+.host-collapsed { padding: 14px !important; }
+.host-collapsed .host-panel-body,
+.host-collapsed .space-y-3 > * + * { margin-top: 8px !important; }
+.host-collapsed .host-header-clickable:hover {
+    /* Extra visual feedback when collapsed (user likely about to expand) */
+    background: rgba(34, 211, 238, 0.06);
+}
+
+/* In TV mode, a collapsed host's hero metrics grow (user focuses on expanded) */
+body.tv-mode .host-collapsed .hero-metric { padding: 20px !important; }
+body.tv-mode .host-collapsed .hero-metric .text-lg {
+    font-size: 2.6rem !important;
+    line-height: 1 !important;
+}
+body.tv-mode .host-collapsed .hero-metric .metric-label {
+    font-size: 0.9rem !important;
+    margin-top: 8px !important;
+}
+
+/* ===== THRESHOLD-CROSS FLASH ===== */
+/* Fired when a metric crosses into a new severity band.
+   Subtle: only brightness + scale, no color swap. */
+.metric-flash {
+    animation: metric-flash 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes metric-flash {
+    0%   { filter: brightness(1) saturate(1);   transform: scale(1); }
+    30%  { filter: brightness(1.5) saturate(1.3); transform: scale(1.03); }
+    100% { filter: brightness(1) saturate(1);   transform: scale(1); }
+}
+
+/* Dial flash — slightly longer and more pronounced */
+.dial-flash .health-dial-fg {
+    animation: dial-flash 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes dial-flash {
+    0%   { filter: drop-shadow(0 0 6px currentColor); }
+    40%  { filter: drop-shadow(0 0 22px currentColor) drop-shadow(0 0 40px currentColor); }
+    100% { filter: drop-shadow(0 0 6px currentColor); }
+}
+
+/* ===== TV / NOC MODE (wall-mount fullscreen) ===== */
+body.tv-mode header.top-bar { display: none; }
+body.tv-mode main {
+    max-width: 100vw !important;
+    padding: 18px 32px !important;
+}
+body.tv-mode {
+    overflow: hidden;
+}
+body.tv-mode::before {
+    /* Darker vignette for display contrast */
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%);
+    pointer-events: none;
+    z-index: 100;
+}
+
+/* Giant health dial — preserves 180:105 viewBox ratio */
+body.tv-mode .health-dial {
+    width: 280px;
+    height: 163px;
+    flex-shrink: 0;
+}
+body.tv-mode .health-dial-wrap {
+    padding-left: 8px;
+}
+/* Score sits a touch higher and label further below so they don't overlap at large size */
+body.tv-mode .health-dial-score {
+    font-size: 48px;
+    transform: translateY(-4px);
+    transform-origin: center;
+}
+body.tv-mode .health-dial-label {
+    font-size: 13px;
+    letter-spacing: 0.22em;
+    transform: translateY(10px);
+    transform-origin: center;
+}
+body.tv-mode .health-dial-caption .cluster-name { font-size: 1.4rem; }
+body.tv-mode .health-dial-caption .cluster-hosts { font-size: 0.9rem; }
+
+/* Amplified cluster summary */
+body.tv-mode .summary-bar {
+    padding: 20px 32px !important;
+    gap: 26px !important;
+}
+body.tv-mode .summary-bar .font-bold {
+    font-size: 1.35rem !important;
+}
+body.tv-mode .summary-bar .text-xs {
+    font-size: 0.85rem !important;
+}
+body.tv-mode .sparkline-container {
+    width: 90px !important;
+    height: 30px !important;
+}
+
+/* Bigger hero metrics per host */
+body.tv-mode .hero-metric {
+    padding: 22px !important;
+}
+body.tv-mode .hero-metric .text-lg {
+    font-size: 2.2rem !important;
+    line-height: 1 !important;
+}
+body.tv-mode .hero-metric .metric-label {
+    font-size: 0.8rem !important;
+    margin-top: 6px !important;
+}
+
+/* LLM badge emphasized */
+body.tv-mode .llm-card {
+    padding: 18px !important;
+}
+body.tv-mode .llm-stat-value {
+    font-size: 1.9rem !important;
+}
+
+/* Hide command panel + recent commands in TV mode — not glanceable */
+body.tv-mode .card > .flex.items-center.justify-between:has(> div > span.text-sm.font-semibold) {
+    /* Fallback: hide the command panel card. Use data attribute instead to be safe. */
+}
+body.tv-mode [data-hide-in-tv] { display: none !important; }
+
+/* TV badge + exit hint */
+.tv-badge {
+    position: fixed;
+    top: 20px;
+    right: 28px;
+    padding: 8px 16px;
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(34, 211, 238, 0.3);
+    border-radius: 20px;
+    color: var(--accent);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    font-family: 'JetBrains Mono', monospace;
+    z-index: 200;
+    backdrop-filter: blur(12px);
+    display: none;
+}
+body.tv-mode .tv-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+body.tv-mode .tv-exit-hint {
+    position: fixed;
+    bottom: 16px;
+    right: 28px;
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.1em;
+    z-index: 200;
+    opacity: 0.6;
+}
+
+/* Host panels fill more space in TV */
+body.tv-mode .host-grid {
+    gap: 18px !important;
+}
+body.tv-mode .card {
+    padding: 20px !important;
+}
+
+/* Cluster label beside dial (small, subordinate) */
+.health-dial-caption {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.1;
+}
+.health-dial-caption .cluster-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.02em;
+}
+.health-dial-caption .cluster-hosts {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
 /* ===== LOADING SKELETON ===== */
 .skeleton {
     position: relative;
@@ -191,14 +491,17 @@ body::before {
     overflow: hidden;
 }
 .progress-fill {
+    position: relative;   /* contain the ::after overlay inside this element */
     height: 100%;
     border-radius: 3px;
     transition: width 0.6s ease;
+    overflow: hidden;
 }
 .progress-fill::after {
     content: '';
     position: absolute;
     inset: 0;
+    pointer-events: none;   /* never steal clicks — this is a decorative gradient sheen */
     background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%);
     border-radius: 3px;
 }

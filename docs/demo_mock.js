@@ -9,12 +9,32 @@
 (function () {
     const START = Date.now();
 
+    // --- Host roster (change to test 1/2/3/4+ node scenarios) ---
+    // Each host has: name, display_name, management_ip, cluster_ip, cluster_peer_ip,
+    //                phase (sinusoid offset), has_vllm (bool)
+    const HOSTS = [
+        { name: 'neo',      display: 'Neo (Upper)',       mgmt: '10.0.0.10', cluster: '192.168.100.10', peer: '192.168.100.11', phase: 0,              vllm: true,  seed: 1000 },
+        { name: 'trinity',  display: 'Trinity (Lower)',   mgmt: '10.0.0.11', cluster: '192.168.100.11', peer: '192.168.100.10', phase: Math.PI / 2,    vllm: false, seed: 2000 },
+        { name: 'morpheus', display: 'Morpheus (Rack 3)', mgmt: '10.0.0.12', cluster: '192.168.100.12', peer: '192.168.100.10', phase: Math.PI,        vllm: false, seed: 3000 },
+        { name: 'tank',     display: 'Tank (Rack 4)',     mgmt: '10.0.0.13', cluster: '192.168.100.13', peer: '192.168.100.10', phase: 3 * Math.PI / 2, vllm: false, seed: 4000 },
+    ];
+    // Number of simulated hosts. Default 2. Override with ?hosts=N in URL (1..4).
+    const _qp = new URLSearchParams(location.search);
+    const _requested = parseInt(_qp.get('hosts') || '2', 10);
+    const ACTIVE_COUNT = Math.max(1, Math.min(HOSTS.length, isNaN(_requested) ? 2 : _requested));
+
     // --- Per-host evolving state ---
-    function makeHostState(name, seed) {
-        let r = seed;
+    function makeHostState(cfg) {
+        let r = cfg.seed;
         const rand = () => { r = (r * 9301 + 49297) % 233280; return r / 233280; };
         return {
-            name,
+            name: cfg.name,
+            display: cfg.display,
+            mgmt: cfg.mgmt,
+            cluster: cfg.cluster,
+            peer: cfg.peer,
+            phase: cfg.phase,
+            has_vllm: cfg.vllm,
             rand,
             total_prompt_tokens: Math.floor(rand() * 48000) + 2000,
             total_gen_tokens: Math.floor(rand() * 192000) + 8000,
@@ -23,12 +43,12 @@
             boot_time: Date.now() / 1000 - (Math.floor(rand() * 86400 * 3) + 3600),
         };
     }
-    const hostStates = {
-        neo: makeHostState('neo', 1000),
-        trinity: makeHostState('trinity', 2000),
-    };
-    hostStates.neo.prefix_cache_hits = Math.floor(hostStates.neo.prefix_cache_queries * 0.3);
-    hostStates.trinity.prefix_cache_hits = Math.floor(hostStates.trinity.prefix_cache_queries * 0.3);
+    const hostStates = {};
+    for (const cfg of HOSTS.slice(0, ACTIVE_COUNT)) {
+        const s = makeHostState(cfg);
+        s.prefix_cache_hits = Math.floor(s.prefix_cache_queries * 0.3);
+        hostStates[cfg.name] = s;
+    }
 
     function gaussian(rand, mean, sd) {
         const u = 1 - rand(), v = rand();
@@ -37,8 +57,7 @@
 
     function tickHost(state) {
         const t = (Date.now() - START) / 1000;
-        const phase = state.name === 'neo' ? 0 : Math.PI / 2;
-        const cpuBase = 20 + 15 * Math.sin(t / 40 + phase);
+        const cpuBase = 20 + 15 * Math.sin(t / 40 + state.phase);
         const cpuUsage = Math.max(1, Math.min(99, cpuBase + gaussian(state.rand, 0, 3)));
 
         const isInferenceActive = (Math.floor(t / 30) % 7) < 1;
@@ -137,7 +156,7 @@
             : [];
 
         let vllm = null;
-        if (state.name === 'neo') {
+        if (state.has_vllm) {
             vllm = {
                 active: true,
                 container: 'vllm-qwen36',
@@ -166,7 +185,7 @@
         for (const [name, state] of Object.entries(hostStates)) {
             const data = tickHost(state);
             hosts[name] = {
-                display_name: name === 'neo' ? 'Neo (Upper)' : 'Trinity (Lower)',
+                display_name: state.display,
                 online: true,
                 metrics: data.metrics,
                 gpu_procs: data.gpu_procs,
@@ -253,15 +272,16 @@
         }
         if (url.match(/\/api\/hosts\/(\w+)\/info/)) {
             const name = url.match(/\/api\/hosts\/(\w+)\/info/)[1];
-            const isNeo = name === 'neo';
+            const state = hostStates[name];
             return new Response(JSON.stringify({
-                name, display_name: isNeo ? 'Neo (Upper)' : 'Trinity (Lower)',
+                name,
+                display_name: state ? state.display : name,
                 ssh_alias: name,
-                management_ip: isNeo ? '10.0.0.10' : '10.0.0.11',
-                cluster_ip: isNeo ? '192.168.100.10' : '192.168.100.11',
-                cluster_peer_ip: isNeo ? '192.168.100.11' : '192.168.100.10',
+                management_ip: state ? state.mgmt : '',
+                cluster_ip: state ? state.cluster : '',
+                cluster_peer_ip: state ? state.peer : '',
                 hostname: name,
-                ip: isNeo ? '192.168.100.10' : '192.168.100.11',
+                ip: state ? state.cluster : '',
                 kernel: '6.17.0-1014-nvidia',
                 os: 'Ubuntu 24.04.4 LTS (DGX OS)',
                 gpu: 'NVIDIA GB10, 580.126.09',

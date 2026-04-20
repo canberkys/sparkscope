@@ -53,7 +53,75 @@ document.addEventListener('alpine:init', () => {
         wsRetryCount: 0,
         heartbeatTimer: null,
 
+        // --- TV / NOC mode ---
+        tvMode: false,
+        tvRotateTimer: null,
+        tvReloadTimer: null,
+
+        _tvEscHandler: null,
+
+        enterTvMode() {
+            if (this.tvMode) return;
+            if (window.innerWidth < 1024) {
+                // Gracefully no-op on narrow viewports — TV mode needs wide display
+                console.warn('TV mode requires viewport ≥ 1024px');
+                return;
+            }
+            this.tvMode = true;
+            document.body.classList.add('tv-mode');
+
+            // Auto-rotate host highlight every 30s
+            let i = 0;
+            this.tvRotateTimer = setInterval(() => {
+                const activeNames = Object.keys(this.hosts);
+                if (activeNames.length === 0) return;
+                const target = activeNames[i % activeNames.length];
+                this.highlightHost(target);
+                i++;
+            }, 30000);
+
+            // Auto-reload every 30 min (wall display freshness)
+            this.tvReloadTimer = setTimeout(() => location.reload(), 30 * 60 * 1000);
+
+            // Esc to exit
+            this._tvEscHandler = (e) => {
+                if (e.key === 'Escape' && this.tvMode) this.exitTvMode();
+            };
+            document.addEventListener('keydown', this._tvEscHandler);
+
+            // Reflect in URL for deep-linking
+            const url = new URL(location.href);
+            url.searchParams.set('mode', 'tv');
+            history.replaceState({}, '', url.toString());
+        },
+
+        exitTvMode() {
+            this.tvMode = false;
+            document.body.classList.remove('tv-mode');
+            if (this.tvRotateTimer) { clearInterval(this.tvRotateTimer); this.tvRotateTimer = null; }
+            if (this.tvReloadTimer) { clearTimeout(this.tvReloadTimer); this.tvReloadTimer = null; }
+            if (this._tvEscHandler) { document.removeEventListener('keydown', this._tvEscHandler); this._tvEscHandler = null; }
+            // Clear URL params
+            const url = new URL(location.href);
+            url.searchParams.delete('mode');
+            url.searchParams.delete('tv');
+            history.replaceState({}, '', url.toString());
+        },
+
+        toggleTvMode() {
+            this.tvMode ? this.exitTvMode() : this.enterTvMode();
+        },
+
+        initTvMode() {
+            // Auto-enter via ?mode=tv or ?tv=1 query param
+            const params = new URLSearchParams(location.search);
+            if (params.get('mode') === 'tv' || params.get('tv') === '1') {
+                this.enterTvMode();
+            }
+        },
+
         async init() {
+            this.loadHostExpansion();
             this.updateClock();
             this.clockTimer = setInterval(() => this.updateClock(), 1000);
             await this.loadCommands();
@@ -64,11 +132,146 @@ document.addEventListener('alpine:init', () => {
             setTimeout(() => {
                 this.loadHistoricalCharts();
                 this.loadHostInfo();
+                // TV mode init after first data so hosts are populated
+                this.initTvMode();
             }, 1000);
         },
 
         hostInfo: {},
         showHostInfo: {},
+
+        // --- Host expansion state (persists in localStorage) ---
+        hostExpansionStates: {},   // { neo: true, trinity: false, ... }
+        _hostExpansionInitialized: false,
+
+        loadHostExpansion() {
+            try {
+                const raw = localStorage.getItem('sparkscope.hostExpansion');
+                if (raw) this.hostExpansionStates = JSON.parse(raw) || {};
+            } catch { this.hostExpansionStates = {}; }
+            this._hostExpansionInitialized = true;
+        },
+        saveHostExpansion() {
+            if (!this._hostExpansionInitialized) return;
+            try { localStorage.setItem('sparkscope.hostExpansion', JSON.stringify(this.hostExpansionStates)); } catch {}
+        },
+        isHostExpanded(name) {
+            // Default: expanded (undefined means never toggled)
+            return this.hostExpansionStates[name] !== false;
+        },
+        toggleHostExpanded(name) {
+            const next = !this.isHostExpanded(name);
+            // Reassign to new object to guarantee Alpine reactivity
+            this.hostExpansionStates = { ...this.hostExpansionStates, [name]: next };
+            this.saveHostExpansion();
+        },
+
+        // --- Health Dial ---
+        // Arc length of semicircle with r=65: π × 65 ≈ 204.20
+        DIAL_ARC_LENGTH: 204.2,
+
+        computeHealthScore() {
+            // Starts at 100; penalties stack. Only drives the hero dial.
+            if (!this.hosts || Object.keys(this.hosts).length === 0) return 0;
+            let score = 100;
+            for (const host of Object.values(this.hosts)) {
+                if (!host.online) { score -= 30; continue; }
+                const m = host.metrics || {};
+                const cpuTemp = m['cpu.temp_max_c'] || 0;
+                if (cpuTemp >= 85) score -= 15;
+                else if (cpuTemp >= 75) score -= 5;
+                const gpuTemp = m['gpu.temp_c'] || 0;
+                if (gpuTemp >= 90) score -= 15;
+                else if (gpuTemp >= 80) score -= 5;
+                if ((m['gpu.ecc_uncorrected'] || 0) > 0) score -= 20;
+                if (m['gpu.throttle_active']) score -= 8;
+                const diskPct = m['disk.root_used_pct'] || 0;
+                if (diskPct >= 95) score -= 10;
+                else if (diskPct >= 80) score -= 3;
+                if ((m['memory.used_pct'] || 0) >= 90) score -= 5;
+            }
+            const activeAlerts = (this.alerts?.active || []).length;
+            score -= activeAlerts * 5;
+            return Math.max(0, Math.min(100, Math.round(score)));
+        },
+
+        get healthScore() { return this.computeHealthScore(); },
+
+        get healthLevel() {
+            const hosts = Object.values(this.hosts || {});
+            if (!hosts.length || hosts.every(h => !h.online)) return 'dead';
+            const s = this.healthScore;
+            if (s >= 90) return 'ok';
+            if (s >= 75) return 'ok';   // cyan / healthy band
+            if (s >= 50) return 'warn';
+            return 'crit';
+        },
+
+        get healthLabel() {
+            return {
+                ok: 'HEALTHY',
+                warn: 'WARNING',
+                crit: 'CRITICAL',
+                dead: 'OFFLINE',
+            }[this.healthLevel];
+        },
+
+        get healthDashOffset() {
+            // 0 score → 204.2 offset (nothing drawn); 100 → 0 (full arc)
+            return this.DIAL_ARC_LENGTH * (1 - this.healthScore / 100);
+        },
+
+        // --- Threshold-cross flash watcher ---
+        // Tracks severity "bands" per metric and flashes the card when crossing.
+        _prevBands: {},   // { 'neo.cpu_temp': 'ok' | 'warn' | 'crit', ... }
+        _prevHealthLevel: null,
+
+        _band(value, warn, crit) {
+            if (value >= crit) return 'crit';
+            if (value >= warn) return 'warn';
+            return 'ok';
+        },
+
+        checkThresholdCrossings() {
+            const flashes = [];   // list of DOM selectors to animate
+            for (const [name, host] of Object.entries(this.hosts || {})) {
+                if (!host.online || !host.metrics) continue;
+                const m = host.metrics;
+                const checks = [
+                    { key: `${name}.cpu_temp`, sel: `#host-${name} [data-hero="cpu-temp"]`, val: m['cpu.temp_max_c'] || 0, warn: 75, crit: 85 },
+                    { key: `${name}.gpu_temp`, sel: `#host-${name} [data-hero="gpu-temp"]`, val: m['gpu.temp_c'] || 0, warn: 80, crit: 90 },
+                    { key: `${name}.power`,    sel: `#host-${name} [data-hero="power"]`,   val: m['gpu.power_draw_w'] || 0, warn: 150, crit: 200 },
+                    { key: `${name}.cpu_usage`, sel: `#host-${name} [data-hero="cpu"]`,    val: m['cpu.usage_pct'] || 0, warn: 70, crit: 90 },
+                    { key: `${name}.gpu_util`, sel: `#host-${name} [data-hero="gpu"]`,     val: m['gpu.util_pct'] || 0, warn: 70, crit: 90 },
+                ];
+                for (const c of checks) {
+                    const band = this._band(c.val, c.warn, c.crit);
+                    const prev = this._prevBands[c.key];
+                    if (prev !== undefined && prev !== band) {
+                        flashes.push(c.sel);
+                    }
+                    this._prevBands[c.key] = band;
+                }
+            }
+            // Dial-level flash on health level change
+            const curLvl = this.healthLevel;
+            if (this._prevHealthLevel !== null && this._prevHealthLevel !== curLvl) {
+                flashes.push('.health-dial-wrap');
+            }
+            this._prevHealthLevel = curLvl;
+
+            // Apply animation — add class, remove after 800ms so it can re-trigger
+            for (const sel of flashes) {
+                document.querySelectorAll(sel).forEach(el => {
+                    el.classList.remove('metric-flash', 'dial-flash');
+                    // Force reflow to restart animation
+                    void el.offsetWidth;
+                    if (sel === '.health-dial-wrap') el.classList.add('dial-flash');
+                    else el.classList.add('metric-flash');
+                    setTimeout(() => el.classList.remove('metric-flash', 'dial-flash'), 900);
+                });
+            }
+        },
 
         async loadHostInfo() {
             for (const name of Object.keys(this.hosts)) {
@@ -227,6 +430,7 @@ document.addEventListener('alpine:init', () => {
                     this.loading = false;
                     this.updateSparklines();
                     this.updateCharts();
+                    this.checkThresholdCrossings();
                     // Refresh command history every 10 seconds
                     const now = Date.now();
                     if (!this._lastHistoryFetch || now - this._lastHistoryFetch > 10000) {
