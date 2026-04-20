@@ -1,0 +1,16 @@
+[project]
+name = "gb10-dashboard"
+version = "0.1.0"
+description = "Real-time monitoring dashboard for Dell GB10 / DGX Spark cluster"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "asyncssh>=2.19.0",
+    "aiosqlite>=0.21.0",
+    "pyyaml>=6.0",
+    "websockets>=14.0",
+]
+
+[tool.uv]
+dev-dependencies = []

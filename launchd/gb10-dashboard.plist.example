@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Example macOS launchd plist for GB10 Dashboard autostart.
+
+    USAGE:
+    1. Edit the paths below (WorkingDirectory, StandardOutPath, StandardErrorPath)
+       to match your environment. Replace <YOUR_USER> with your macOS username.
+    2. Copy to ~/Library/LaunchAgents/ and rename (drop .example):
+         cp gb10-dashboard.plist.example ~/Library/LaunchAgents/gb10-dashboard.plist
+    3. Load: launchctl load ~/Library/LaunchAgents/gb10-dashboard.plist
+    4. Unload: launchctl unload ~/Library/LaunchAgents/gb10-dashboard.plist
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>gb10-dashboard</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/uv</string>
+        <string>run</string>
+        <string>uvicorn</string>
+        <string>app:app</string>
+        <string>--host</string>
+        <string>127.0.0.1</string>
+        <string>--port</string>
+        <string>8000</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/&lt;YOUR_USER&gt;/path/to/gb10-dashboard</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/&lt;YOUR_USER&gt;/.gb10-dashboard/launchd-stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/&lt;YOUR_USER&gt;/.gb10-dashboard/launchd-stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>

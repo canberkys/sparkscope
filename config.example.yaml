@@ -1,0 +1,49 @@
+hosts:
+  host1:
+    ssh_alias: host1              # Must exist in ~/.ssh/config
+    display_name: "Host 1"
+    management_ip: "10.0.0.10"    # Optional — shown in header as cyan badge
+    cluster_ip: "192.168.100.10"  # Optional — this host's cluster-link IP
+    cluster_peer_ip: "192.168.100.11"  # Peer's cluster IP (for ping_cluster_peer command)
+  host2:
+    ssh_alias: host2
+    display_name: "Host 2"
+    management_ip: "10.0.0.11"
+    cluster_ip: "192.168.100.11"
+    cluster_peer_ip: "192.168.100.10"
+
+polling:
+  interval_seconds: 2
+  timeout_seconds: 5
+  max_retries: 3
+  reconnect_backoff_seconds: [1, 2, 5, 10, 30]
+
+database:
+  path: "~/.gb10-dashboard/metrics.db"
+  raw_retention_hours: 24
+  vacuum_interval_hours: 24
+
+server:
+  host: "127.0.0.1"
+  port: 8000
+  log_level: "info"
+
+security:
+  allow_custom_commands: false
+  command_confirmation_required: true
+
+thresholds:
+  cpu_temp_warning: 75
+  cpu_temp_critical: 85
+  gpu_temp_warning: 80
+  gpu_temp_critical: 90
+  gpu_power_warning: 200
+  disk_usage_warning: 80
+  disk_usage_critical: 95
+  memory_usage_warning: 90
+  network_error_rate_warning: 100
+
+ui:
+  refresh_hint_seconds: 2
+  chart_history_minutes: 10
+  theme: "auto"
