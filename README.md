@@ -1,11 +1,22 @@
-# GB10 Cluster Dashboard
+# sparkscope — GB10 Cluster Dashboard
 
 Real-time monitoring dashboard for NVIDIA DGX Spark / Dell Pro Max with GB10 cluster nodes. Runs on your laptop/workstation, monitors 1–N GB10 hosts over SSH, and streams live metrics via WebSocket to a glassmorphism dark-themed web UI.
 
-<!-- Screenshot placeholder — add your own screenshots to docs/ and reference them here -->
-<!-- ![Dashboard preview](docs/screenshot.png) -->
+<!-- Live demo badge — replace with your HF Space URL after deploying -->
+<!-- [![Live Demo](https://img.shields.io/badge/🤗%20Live%20Demo-sparkscope-yellow)](https://huggingface.co/spaces/YOUR-USER/sparkscope) -->
 
-A stylized device icon (`static/device.svg`) is used in the UI so the repo stays free of vendor product photography.
+## 🎭 Live Demo
+
+A **demo mode** ships with the repo — it swaps SSH/vLLM polling for synthetic data (`mock_collector.py`), so you can host a working showcase of the UI without exposing any real infrastructure.
+
+**Quick deploy options** — see [`deploy/README.md`](deploy/README.md) for full instructions:
+- **Hugging Face Spaces** (free, Docker-based, persistent URL) — recommended
+- **Railway**, **Render**, **Fly.io** — one-click from GitHub
+- **Local Docker** — `docker build -t sparkscope . && docker run -p 8000:7860 sparkscope`
+
+Environment variable `DEMO_MODE=1` flips demo mode on. The bundled `Dockerfile` sets it by default.
+
+> The `static/device.svg` icon is a generic SVG drawn for this project — no vendor logos.
 
 ## Features
 
