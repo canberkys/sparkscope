@@ -146,7 +146,7 @@
         ];
         const top_procs = procNames.map((c, i) => ({
             pid: 1234 + i,
-            user: i % 2 === 0 ? 'canberk' : 'root',
+            user: i % 2 === 0 ? 'operator' : 'root',
             cpu_pct: +(i === 0 ? 20 + state.rand() * 60 : state.rand() * 20).toFixed(1),
             mem_pct: +(state.rand() * 5).toFixed(1),
             command: c,
