@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-    Example macOS launchd plist for GB10 Dashboard autostart.
+    Example macOS launchd plist for SparkScope autostart.
 
     USAGE:
     1. Edit the paths below (WorkingDirectory, StandardOutPath, StandardErrorPath)
        to match your environment. Replace <YOUR_USER> with your macOS username.
     2. Copy to ~/Library/LaunchAgents/ and rename (drop .example):
-         cp gb10-dashboard.plist.example ~/Library/LaunchAgents/gb10-dashboard.plist
-    3. Load: launchctl load ~/Library/LaunchAgents/gb10-dashboard.plist
-    4. Unload: launchctl unload ~/Library/LaunchAgents/gb10-dashboard.plist
+         cp sparkscope.plist.example ~/Library/LaunchAgents/sparkscope.plist
+    3. Load: launchctl load ~/Library/LaunchAgents/sparkscope.plist
+    4. Unload: launchctl unload ~/Library/LaunchAgents/sparkscope.plist
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>gb10-dashboard</string>
+    <string>sparkscope</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/opt/homebrew/bin/uv</string>
+        <string>/Users/&lt;YOUR_USER&gt;/.local/bin/uv</string>
         <string>run</string>
         <string>uvicorn</string>
         <string>app:app</string>
@@ -32,7 +32,7 @@
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/&lt;YOUR_USER&gt;/path/to/gb10-dashboard</string>
+    <string>/Users/&lt;YOUR_USER&gt;/path/to/sparkscope</string>
 
     <key>RunAtLoad</key>
     <true/>

@@ -2,9 +2,9 @@
 
 All notable changes are documented here. Versions describe repository functionality; acceptance limits remain explicit. The original published baseline is commit [`5fb8304`](https://github.com/canberkys/sparkscope/commit/5fb8304b6cee07001a015acf3202a08f7fc22b38).
 
-## 0.2.0 — 2026-09-10
+## 0.3.0 — 2026-09-10
 
-Fleet monitoring implementation and documentation update. Targets 10–50 mixed Linux devices; real hardware and sustained production acceptance remain pending. This entry does not imply a release tag, production deployment or completed hardware certification.
+Fleet monitoring implementation and documentation update. Targets 10–50 mixed Linux devices; real hardware and sustained production acceptance remain pending. This release does not imply a production deployment or completed hardware certification.
 
 ### Added
 
@@ -41,7 +41,7 @@ Fleet monitoring implementation and documentation update. Targets 10–50 mixed 
 ### Changed
 
 - Replaced the served Alpine.js/canvas frontend with React/TypeScript/Vite. The production app and static demo now share frontend source.
-- Reorganized the single application into the `sparkscope/` backend package. Legacy files remain reference material.
+- Reorganized the single application into the `sparkscope/` backend package. The obsolete legacy implementation has been removed from the current tree and remains available in Git history.
 - Moved configuration from legacy YAML to environment variables and authenticated dashboard settings.
 - Default system/service cadence is 5 seconds, compared with the original 2-second system polling; SMART and discovery run independently every 60 seconds.
 - Expanded vLLM-only integration to vLLM, Ollama and llama.cpp discovery, with provider-specific metric capabilities. Discovery reads metadata and does not manage model lifecycles.
@@ -64,6 +64,17 @@ Fleet monitoring implementation and documentation update. Targets 10–50 mixed 
 - Rejected malformed webhook URLs and invalid ports with a validation response instead of an internal server error; secret endpoints are not echoed.
 - Extended CI linting to validation scripts and made demo drift checks catch newly generated untracked assets.
 
+- Added a CI-gated GitHub Pages deployment job: only a verified main-branch push publishes the synthetic demo.
+- Aligned Python/frontend/API/UI version metadata to 0.3.0, preserving the existing April 0.2.0 release and tags. Dependency versions remain unchanged.
+
+- Renamed the active macOS autostart example to `launchd/sparkscope.plist.example` and updated its application label/path placeholders.
+
+### Removed
+
+- Unserved `static/` Alpine.js UI and its duplicate artwork/styles/scripts. The current UI lives in `frontend/`; `docs/` is its generated demo.
+- Unused root `db.py` and `vllm_collector.py`, plus the `ssh_collector.py` compatibility alias. Parser tests now import `sparkscope.parsers` directly.
+- Obsolete `config.example.yaml`; legacy import instructions remain in the operations guide and the original example remains in Git history.
+
 ### Upgrade notes
 
 - Install locked Python/frontend dependencies and build assets before starting the new application. Run one worker and one collector per database.
@@ -78,7 +89,11 @@ See [validation](deployment/VALIDATION.md) for the final review results and exac
 
 Still open: real GB10/CPU-only/dual-H200 validation, uninterrupted 24-hour/50-device soak and identified previous-release rollback. Cluster membership does not validate fabric or pooled memory. AMD/Intel GPU adapters, non-Linux remote collection, HPE iLO/Redfish, detailed MIG monitoring and distributed collectors are outside this release.
 
-## Original published dashboard — baseline through `5fb8304`
+## 0.2.0 — 2026-04-20
+
+Original published release: [Hero dial, TV mode, expand/collapse](https://github.com/canberkys/sparkscope/releases/tag/v0.2.0), tagged at `623a287`. Follow-up fixes through `5fb8304` form the baseline for the fleet rewrite.
+
+## 0.1.0 and original dashboard baseline
 
 - GB10/DGX Spark-focused SSH system telemetry, GPU health, NVMe SMART and vLLM integration.
 - Live charts, historical queries, threshold alerts and whitelisted command panels.

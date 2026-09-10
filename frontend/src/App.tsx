@@ -248,7 +248,7 @@ export default function App() {
                 <LogOut size={16} />
               </button>
             </div>
-            <small>SPARKSCOPE 0.2 · YOUR FLEET, IN VIEW</small>
+            <small>SPARKSCOPE 0.3 · YOUR FLEET, IN VIEW</small>
           </div>
         </aside>
         <div className="workspace-main">

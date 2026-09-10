@@ -7,8 +7,8 @@ from sqlalchemy import select
 from sparkscope.alerts import AlertEngine
 from sparkscope.history import history, summarize
 from sparkscope.models import Alert, Device, Rollup, Sample
+from sparkscope.parsers import MetricParser
 from sparkscope.runtimes import prometheus
-from ssh_collector import SSHPool
 
 
 async def test_incident_identity_and_independent_recovery(env):
@@ -76,7 +76,7 @@ async def test_rollups_preserve_peaks_and_are_idempotent(env):
 
 
 def test_parser_unknown_gpu_and_reboot_counters():
-    pool = SSHPool({})
+    pool = MetricParser({})
     assert pool._parse_gpu("20, 10, [N/A], [N/A], [N/A], 50, 60, 100, 900, 900")["gpu.mem_total_mb"] is None
     assert pool._parse_thermal("") == {}
     # GPU-idle is not an overheating/power throttle incident.

@@ -64,7 +64,7 @@ COMMANDS = {
     "ping_cluster_peer": {
         "category": "Network",
         "label": "Ping Cluster Peer",
-        # Cluster peer IP is read from config.yaml (cluster_peer_ip field per host).
+        # Cluster peer IP comes from the device inventory (including legacy imports).
         # The dashboard substitutes {peer_ip} at runtime.
         "command": "ping -c 4 {peer_ip}",
         "destructive": False,

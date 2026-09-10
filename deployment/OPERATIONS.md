@@ -36,6 +36,8 @@ uv run python -m sparkscope.cli import-legacy \
 4. Start the application, create its administrator and inspect the imported inventory. Devices are imported paused. Use each device's connection wizard to verify its host key and save working credentials, then resume monitoring.
 5. Check recent samples, discovered services and history before retiring the previous installation.
 
+The original YAML example is available in the [legacy revision](https://github.com/canberkys/sparkscope/blob/5fb8304b6cee07001a015acf3202a08f7fc22b38/config.example.yaml); it is an import format, not current application configuration.
+
 Import preserves the source files and creates protected backups. It imports device mapping, thresholds, historical metrics and command outcomes. Legacy alerts become historical resolved records because the old category-level incident semantics cannot safely map to active per-metric incidents. GPU-process snapshots remain in the complete legacy backup. Import has a completion marker to prevent duplicate imports; restore the pre-import database to repeat it. Back up PostgreSQL explicitly before import.
 
 ## Backup and restore
@@ -90,10 +92,16 @@ Review operation targets before confirming. A timeout or application restart can
 
 ## macOS autostart
 
-`launchd/gb10-dashboard.plist.example` is optional. Build the frontend, create `~/.sparkscope`, and replace the username/project/uv paths before installing it as a LaunchAgent. Its default port is 8010. Do not run it alongside another collector for the same database.
+`launchd/sparkscope.plist.example` is optional. Build the frontend, create `~/.sparkscope`, and replace the username/project/uv paths before installing it as a LaunchAgent. Its default port is 8010. Do not run it alongside another collector for the same database.
 
 ## Health and notifications
 
 `GET /api/v1/health` reports process liveness. `GET /api/v1/readiness` checks database access and background-worker progress, returning 503 when the application is not ready. Administrators can inspect worker timestamps, stalled jobs and notification backlog under **Settings → Operations & health**. A single unreachable device is a device incident, not necessarily an application readiness failure.
 
 Notification channels are disabled until enabled by an administrator. Configure HTTPS webhooks or TLS-protected SMTP in Settings, then explicitly send a test to the intended destination. Maintenance windows suppress delivery for their scope; they do not stop collection or resolve alarms. Notifications retry with bounded backoff and persistent delivery IDs; receivers should deduplicate by event ID. See [monitoring behavior](MONITORING.md) for saved views, hardware thresholds and delivery semantics.
+
+## GitHub publication
+
+`main` is the published source branch. The Verify SparkScope workflow runs backend and browser checks; its Pages job deploys only the generated `docs/` directory after both checks pass on a main-branch push. Repository Pages uses GitHub Actions, with HTTPS enforced. Pull requests and feature branches do not deploy.
+
+Build and commit the demo before pushing. For a new release, synchronize Python/frontend/API/UI versions and the project metadata in both lockfiles without upgrading dependencies. Preserve existing Git tags. Tag the verified commit and publish release notes from CHANGELOG.md, including upgrade instructions and open acceptance gates. GitHub creates source ZIP/tar archives automatically; this project does not publish prebuilt installers or a container registry image.

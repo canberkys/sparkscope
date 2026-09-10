@@ -4,12 +4,13 @@
 
 **Live monitoring for mixed Linux fleets — from GB10 workstations to multi-GPU servers.**
 
+[![Release](https://img.shields.io/github/v/release/canberkys/sparkscope)](https://github.com/canberkys/sparkscope/releases/latest)
 [![CI](https://github.com/canberkys/sparkscope/actions/workflows/ci.yml/badge.svg)](https://github.com/canberkys/sparkscope/actions/workflows/ci.yml)
 [![Demo](https://img.shields.io/badge/demo-synthetic_telemetry-22d3ee)](https://canberkys.github.io/sparkscope/?hosts=10&hardware=mixed)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776ab)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-69dfb8)](LICENSE)
 
-[Live demo](https://canberkys.github.io/sparkscope/?hosts=10&hardware=mixed) · [Installation](#installation) · [Add devices & GPUs](#add-devices--gpus) · [Monitoring guide](deployment/MONITORING.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
+[Latest release](https://github.com/canberkys/sparkscope/releases/latest) · [Live demo](https://canberkys.github.io/sparkscope/?hosts=10&hardware=mixed) · [Installation](#installation) · [Add devices & GPUs](#add-devices--gpus) · [Monitoring guide](deployment/MONITORING.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 </div>
 
@@ -19,7 +20,7 @@
 
 SparkScope collects telemetry over SSH and streams it to a live dashboard. Expand a device to inspect its hardware, compare GPU history, or use TV mode for a monitoring display. One inventory can contain CPU-only Linux hosts, GB10 systems, NVIDIA GPU workstations and servers with multiple GPUs.
 
-**0.2 targets 10–50 devices.** Local automated and synthetic checks have passed; real GB10/dual-H200 acceptance, the reference-server 24-hour soak and previous-release rollback remain open. See [validation evidence](deployment/VALIDATION.md). This is not a production-readiness certification.
+**0.3 targets 10–50 devices.** Local automated and synthetic checks have passed; real GB10/dual-H200 acceptance, the reference-server 24-hour soak and previous-release rollback remain open. See [validation evidence](deployment/VALIDATION.md). This is not a production-readiness certification.
 
 ## What you can do
 
@@ -173,12 +174,12 @@ Open **http://127.0.0.1:8012/?hosts=10&hardware=mixed**. Device counts: `2`, `10
 
 ## Upgrade and verification
 
-The legacy `config.yaml` is not the new configuration source. The [legacy import procedure](deployment/OPERATIONS.md#upgrade-from-the-two-device-version) preserves the source and imports devices paused for fresh SSH verification. Original `db.py`, `vllm_collector.py` and `static/` remain reference files; the new application does not serve them.
+The legacy `config.yaml` is not the new configuration source. The [legacy import procedure](deployment/OPERATIONS.md#upgrade-from-the-two-device-version) preserves the source and imports devices paused for fresh SSH verification. The obsolete `static/` UI, legacy collectors/database module and old configuration example have been removed. The original implementation remains available in [Git history](https://github.com/canberkys/sparkscope/tree/5fb8304b6cee07001a015acf3202a08f7fc22b38); legacy import remains supported.
 
 ```bash
 uv run pytest -q
-uv run ruff check sparkscope tests migrations app.py commands.py ssh_collector.py scripts
-uv run ruff format --check sparkscope tests migrations app.py commands.py ssh_collector.py scripts
+uv run ruff check sparkscope tests migrations app.py commands.py scripts
+uv run ruff format --check sparkscope tests migrations app.py commands.py scripts
 npm run format:check --prefix frontend
 npm run build --prefix frontend
 (cd frontend && npx playwright install chromium)
@@ -188,7 +189,7 @@ npm run test:real --prefix frontend
 
 PostgreSQL tests require a **dedicated test server/account** through `SPARKSCOPE_TEST_POSTGRES_URL`; the account must create/drop temporary test databases. Never point this at the application database. The real-API browser suite uses disposable local database/SSH fixtures, not real hardware.
 
-See [validation](deployment/VALIDATION.md) for exact completed checks and limits, [changelog](CHANGELOG.md) for the 0.1 → 0.2 transition, and [roadmap](ROADMAP.md) for remaining acceptance and future scope.
+See [validation](deployment/VALIDATION.md) for exact completed checks and limits, [changelog](CHANGELOG.md) for the original dashboard → 0.3 transition, and [roadmap](ROADMAP.md) for remaining acceptance and future scope.
 
 ## Architecture and limits
 

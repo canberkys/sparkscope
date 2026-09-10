@@ -6,7 +6,7 @@ Updated 2026-09-10. This roadmap distinguishes implemented features from accepta
 
 Make it easy to answer: which devices need attention, how fresh and reliable are their readings, and what action is available? Preserve live monitoring, expandable device detail and TV mode while supporting 10–50 mixed Linux hosts. UI language is English.
 
-## Implemented in the 0.2 codebase
+## Implemented in the 0.3 codebase
 
 - [x] Modular FastAPI backend, SQLite/PostgreSQL, migrations and repeatable dependency locks.
 - [x] Verified SSH onboarding, encrypted credentials/rotation, accounts/roles and controlled operations.

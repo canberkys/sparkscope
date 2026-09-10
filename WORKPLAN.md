@@ -1,4 +1,4 @@
-# SparkScope 0.2 — current delivery status
+# SparkScope 0.3 — current delivery status
 
 Target: 10–50 mixed Linux devices, including CPU-only hosts, GB10 and single/multiple NVIDIA GPU servers such as a dual-H200 HPE host. Local Mac development and shared Linux/Docker installations are supported. UI language is English.
 

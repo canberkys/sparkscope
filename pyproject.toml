@@ -1,6 +1,6 @@
 [project]
 name = "gb10-dashboard"
-version = "0.2.0"
+version = "0.3.0"
 description = "Live fleet monitoring for mixed Linux hosts and NVIDIA GPUs"
 requires-python = ">=3.11"
 dependencies = [

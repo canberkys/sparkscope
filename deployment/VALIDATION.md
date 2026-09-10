@@ -2,6 +2,14 @@
 
 Local implementation verification, 2026-09-09. These checks do not constitute production or real-device acceptance. Previous-Mac results below are retained separately from the new-Mac rerun.
 
+## 0.3.0 release cleanup — 2026-09-10
+
+Removed the unserved `static/` UI, unused legacy database/vLLM modules, parser compatibility alias and obsolete YAML example. Parser tests import the current package directly; legacy import remains supported and the original code/example remain in Git history. Active frontend/demo assets and the macOS autostart example remain supported.
+
+Python/frontend/API/UI versions now agree on 0.3.0 because the existing v0.2.0 GitHub release belongs to the April legacy dashboard. Both lockfiles changed only project version metadata; dependency versions are unchanged. README links the latest release, and CI publishes only `docs/` after successful main-branch backend/frontend jobs.
+
+Cleanup verification: **55 SQLite tests passed**, Ruff lint/format (**39 files**), frontend formatting, production/demo builds and locked synchronization passed. An initial sandbox socket denial and a build/test overlap were followed by a successful isolated sequential test run. Full PostgreSQL/browser coverage is repeated by CI on the published commit. Prior deployment/hardware evidence retains its stated scope; no new real-device acceptance is claimed.
+
 ## Final pre-publication review — 2026-09-10
 
 This section supersedes earlier counts for the current source. Three focused reviews covered UI/workflows, backend/security behavior and installation/CI; they do not certify every possible deployment or accessibility requirement.
@@ -100,6 +108,6 @@ uv run python -m sparkscope.load_test --duration 60 --devices 50 --clients 5 --o
 - **Real mixed hardware (GB10, CPU-only Linux and dual H200):** verify password and key onboarding, compare the displayed fingerprint, validate GB10 unified-memory/N/A metrics, all installed runtime providers, SMART permissions, interface/disk discovery, reconnect after reboot and actual operation outcomes. Test state-changing operations only in an agreed maintenance window.
 - **24-hour reference-server soak:** use the intended server and a dedicated empty PostgreSQL test database; record CPU/RAM/disk/OS/database versions. Run the harness with `--duration 86400 --devices 50 --clients 5 --database-url postgresql+asyncpg://… --output /secure/test/soak.json`. It seeds test records and leaves them in that dedicated database. Require p95 latency ≤10 seconds, p95 queries ≤1 second, no unexpected client errors, and inspect memory, database growth, retention/rollups and outage recovery over time. The harness's `passed` flag alone does not validate all of these gates.
 - **Deployment acceptance:** local isolated Compose/HTTPS/restart/restore and same-image data rollback passed as recorded above. The intended deployment server and host-reboot persistence still need validation. Rolling back to an identified previous application binary with its matching database/key backup remains open.
-- **Publication tracking:** source verification runs in [GitHub Actions](https://github.com/canberkys/sparkscope/actions/workflows/ci.yml). The public synthetic demo is published from `main:/docs`; confirm the Pages build and served assets for the selected commit. GitHub publication is separate from installation on a real monitoring server.
+- **Publication tracking:** source verification runs in [GitHub Actions](https://github.com/canberkys/sparkscope/actions/workflows/ci.yml). The public synthetic demo is deployed by the CI Pages job from the checked-out `docs/` directory only after both verification jobs pass on `main`; confirm the Pages job and served assets for the selected commit. GitHub publication is separate from installation on a real monitoring server.
 
 Distributed collectors, high availability, bulk/network discovery and model installation/start/stop are outside this release's scope.

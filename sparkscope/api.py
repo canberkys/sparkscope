@@ -226,7 +226,7 @@ def create_app(settings=None, transport=None):
             await collector.stop()
             await db.close()
 
-    app = FastAPI(title="SparkScope", version="0.2.0", lifespan=lifespan)
+    app = FastAPI(title="SparkScope", version="0.3.0", lifespan=lifespan)
     app.state.db = db
     app.state.vault = vault
     app.state.collector = collector
@@ -270,7 +270,7 @@ def create_app(settings=None, transport=None):
 
     @app.get("/api/v1/health")
     async def health():
-        return {"status": "ok", "version": "0.2.0"}
+        return {"status": "ok", "version": "0.3.0"}
 
     @app.get("/api/v1/auth/status")
     async def auth_status():
