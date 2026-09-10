@@ -1,0 +1,60 @@
+name: Verify SparkScope
+on: [push, pull_request]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: sparkscope_test
+          POSTGRES_PASSWORD: test_only
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sparkscope_test -d postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - run: uv sync --locked
+      - run: uv run ruff check sparkscope tests migrations scripts app.py commands.py ssh_collector.py
+      - run: uv run ruff format --check sparkscope tests migrations scripts app.py commands.py ssh_collector.py
+      - run: uv run pytest -q
+        env:
+          SPARKSCOPE_TEST_POSTGRES_URL: postgresql://sparkscope_test:test_only@localhost:5432/postgres
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - run: uv sync --locked
+        working-directory: .
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run format:check
+      - run: npm run test:e2e
+      - run: npm run test:real
+      - run: python3 ../scripts/build_demo.py
+      - name: Verify generated demo is committed
+        run: |
+          git diff --exit-code -- ../docs
+          test -z "$(git ls-files --others --exclude-standard -- ../docs)"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: frontend/test-results

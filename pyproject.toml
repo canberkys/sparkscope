@@ -1,7 +1,7 @@
 [project]
 name = "gb10-dashboard"
-version = "0.1.0"
-description = "Real-time monitoring dashboard for Dell GB10 / DGX Spark cluster"
+version = "0.2.0"
+description = "Live fleet monitoring for mixed Linux hosts and NVIDIA GPUs"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
@@ -10,7 +10,25 @@ dependencies = [
     "aiosqlite>=0.21.0",
     "pyyaml>=6.0",
     "websockets>=14.0",
+    "sqlalchemy[asyncio]>=2.0.36,<3",
+    "alembic>=1.14,<2",
+    "asyncpg>=0.30,<1",
+    "cryptography>=44",
+    "argon2-cffi>=23.1",
+    "httpx>=0.28,<1",
 ]
 
-[tool.uv]
-dev-dependencies = []
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.25", "ruff>=0.11"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

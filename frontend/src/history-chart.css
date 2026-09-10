@@ -1,0 +1,174 @@
+.history-chart {
+  padding: 20px 22px 18px;
+  min-width: 0;
+}
+.history-chart-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.history-chart-heading h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.history-chart-heading h3 span {
+  color: var(--muted, #94a3b8);
+  font-weight: 400;
+}
+.history-range-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--muted, #94a3b8);
+}
+.history-range-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--history-color, #71e5bc);
+}
+.history-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(170px, 1.3fr);
+  gap: 16px;
+  margin: 0 0 12px;
+}
+.history-summary dt {
+  font-size: 0.74rem;
+  color: var(--muted, #94a3b8);
+  margin-bottom: 6px;
+}
+.history-summary dd {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.history-summary dd.history-summary-time {
+  font-size: 0.84rem;
+  line-height: 1.6;
+  font-weight: 400;
+}
+.history-plot {
+  width: 100%;
+  min-width: 0;
+}
+.history-plot svg {
+  display: block;
+  width: 100%;
+  height: 222px;
+  overflow: visible;
+  touch-action: pan-y;
+  border-radius: 4px;
+}
+.history-plot svg:focus-visible {
+  outline: 2px solid var(--history-color, #71e5bc);
+  outline-offset: 3px;
+}
+.history-plot text {
+  fill: #94a3b8;
+  font-size: 11px;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.history-grid {
+  stroke: #293342;
+  stroke-width: 1;
+  stroke-dasharray: 2 5;
+}
+.history-line {
+  fill: none;
+  stroke: var(--history-color, #71e5bc);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+.history-band {
+  fill: var(--history-color, #71e5bc);
+  opacity: 0.1;
+}
+.history-dot {
+  fill: var(--history-color, #71e5bc);
+  stroke: #10171f;
+  stroke-width: 1.5;
+}
+.history-chart.history-chart-compact {
+  padding: 12px;
+}
+.history-chart-compact .history-chart-heading {
+  gap: 6px 10px;
+  margin-bottom: 2px;
+}
+.history-chart-compact .history-chart-heading h3 {
+  font-size: 0.82rem;
+}
+.history-latest {
+  color: var(--history-color, #71e5bc);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+.history-chart-compact .history-plot svg {
+  height: 140px;
+}
+.history-chart-compact .history-inspection {
+  min-height: 24px;
+  gap: 6px;
+  justify-content: space-between;
+  font-size: 0.7rem;
+}
+.history-description-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.history-crosshair {
+  stroke: #718b85;
+  stroke-dasharray: 3 4;
+}
+.history-inspection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  min-height: 42px;
+  align-content: center;
+  border-top: 1px solid var(--border, #293342);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color: #aab7c5;
+}
+.history-inspection strong {
+  font-weight: 500;
+  color: #dce5ee;
+}
+.history-method {
+  margin: 8px 0 0;
+  color: var(--muted, #94a3b8);
+  font-size: 0.7rem;
+  line-height: 1.6;
+}
+@media (max-width: 640px) {
+  .history-chart {
+    padding: 18px 15px 15px;
+  }
+  .history-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 12px;
+  }
+  .history-summary dd {
+    font-size: 1.1rem;
+  }
+  .history-inspection {
+    min-height: 78px;
+    gap: 3px 12px;
+  }
+}

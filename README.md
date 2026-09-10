@@ -1,190 +1,205 @@
-# sparkscope — GB10 Cluster Dashboard
+<div align="center">
 
-Real-time monitoring dashboard for NVIDIA DGX Spark / Dell Pro Max with GB10 cluster nodes. Runs on your laptop/workstation, monitors 1–N GB10 hosts over SSH, and streams live metrics via WebSocket to a glassmorphism dark-themed web UI.
+# SparkScope
 
-[![Live Demo](https://img.shields.io/badge/🎭%20Live%20Demo-GitHub%20Pages-22d3ee?style=flat-square)](https://canberkys.github.io/sparkscope/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+**Live monitoring for mixed Linux fleets — from GB10 workstations to multi-GPU servers.**
 
-## 🎭 Live Demo
+[![CI](https://github.com/canberkys/sparkscope/actions/workflows/ci.yml/badge.svg)](https://github.com/canberkys/sparkscope/actions/workflows/ci.yml)
+[![Demo](https://img.shields.io/badge/demo-synthetic_telemetry-22d3ee)](https://canberkys.github.io/sparkscope/?hosts=10&hardware=mixed)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776ab)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-69dfb8)](LICENSE)
 
-**[👉 canberkys.github.io/sparkscope](https://canberkys.github.io/sparkscope/)** — runs entirely in your browser with synthetic data, no backend required.
+[Live demo](https://canberkys.github.io/sparkscope/?hosts=10&hardware=mixed) · [Installation](#installation) · [Add devices & GPUs](#add-devices--gpus) · [Monitoring guide](deployment/MONITORING.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
-The full UI is mirrored in the `docs/` folder with a JavaScript-only mock layer (`demo_mock.js`) that replaces `fetch` + `WebSocket` with in-memory generators. You see the same dashboard with realistic simulated metrics: 2 GB10 nodes, CPU/GPU waveforms, inference bursts, a vLLM serving `qwen3.6-35b` at ~50 tok/sec.
+</div>
 
-> The `static/device.svg` icon is a generic SVG drawn for this project — no vendor logos.
+![SparkScope mixed-device Overview with synthetic telemetry](deployment/images/overview.png)
 
-## Features
+*Demo screenshot: simulated devices and readings, not real hardware measurements.*
 
-**System metrics** (2-second polling, single SSH round-trip per host):
-- CPU utilization, load average (1m/5m/15m), max thermal-zone temperature
-- GPU utilization, VRAM, temperature, power draw, SM/memory clock
-- **GPU health**: ECC errors (corrected/uncorrected), throttle reasons, PCIe generation, persistence mode
-- **NVMe SMART** (slow-poll 60s): temperature, wear level, media errors
-- Memory (total/available/cached/buffers + swap), disk (root + NVMe IOPS/throughput)
-- Network (WiFi + cluster links rx/tx Mbps + error rates)
-- Top CPU processes, GPU compute processes
+SparkScope collects telemetry over SSH and streams it to a live dashboard. Expand a device to inspect its hardware, compare GPU history, or use TV mode for a monitoring display. One inventory can contain CPU-only Linux hosts, GB10 systems, NVIDIA GPU workstations and servers with multiple GPUs.
 
-**vLLM inference integration** (auto-detected):
-- Loaded model name + max context length shown in host header
-- Token generation rate (tokens/sec)
-- Active / queued requests
-- KV cache usage
-- Prefix cache hit rate
-- Total prompt / generation tokens
-- Metrics persisted for historical trending
+**0.2 targets 10–50 devices.** Local automated and synthetic checks have passed; real GB10/dual-H200 acceptance, the reference-server 24-hour soak and previous-release rollback remain open. See [validation evidence](deployment/VALIDATION.md). This is not a production-readiness certification.
 
-**UI**:
-- Live time-series charts (raw canvas, no Chart.js dependency)
-- Historical query with time range selector (Live / 5m / 15m / 1h / 6h / 24h)
-- Inline host info (hostname, IP, kernel, OS, GPU model)
-- Native `<details>` collapsible widgets per section
-- Inline SVG sparklines in metric cards
-- Hover tooltips on all charts
-- Alert timeline (Gantt view for last 24h)
+## What you can do
 
-**Commands panel** (whitelisted, SSH):
-- System: uptime, kernel info, reboot, shutdown, apt update/upgrade
-- GPU: `nvidia-smi` full output, GPU processes, GPU reset
-- Network: interface status, ping cluster peer, WiFi quality
-- Logs: `dmesg`, journalctl errors, NVIDIA kernel messages
-- Confirmation modal for destructive commands
-- Output modal for readable display
+| Workflow | Capabilities |
+| --- | --- |
+| Monitor live | Expandable device cards, CPU/memory/disk/network readings, GPU-specific charts, freshness indicators and TV page rotation |
+| Find and organize | Search names, IPs, tags and GPU models such as GB10, H200 or 4090; groups, explicit clusters and saved personal/shared views |
+| Investigate | Timestamp-correct history with visible gaps, units and optional min/max bands; compare up to four devices/GPUs; incident/connectivity/service events |
+| Understand inference | Discover vLLM, Ollama and llama.cpp services/models; show only metrics supported by the provider |
+| Respond | Device/GPU alarm rules, acknowledgement, webhook/email notifications, maintenance windows and explicit-target whitelisted operations |
+| Administer | Guided SSH trust, encrypted credentials, roles, device connection updates, pause/archive, backups and key rotation |
 
-**Alerting**:
-- Threshold-based, 3-consecutive-sample policy
-- CPU/GPU temperature, disk usage, memory usage, GPU power
-- **ECC uncorrected error** → critical (early hardware failure signal)
-- **GPU throttling active** → warning
-
-**Observability**:
-- SQLite with 24h retention, WAL mode, persistent connection
-- Alert table (active + resolved history)
-- Graceful SSH reconnect with exponential backoff
+Live monitoring, expandable panels and TV mode carry forward the original dashboard's core workflows. The fleet release adds multi-user administration and mixed-hardware support around them.
 
 ## Requirements
 
-- macOS (developed on Apple Silicon — should work on Linux with minor tweaks)
-- Python 3.11+
-- [uv](https://docs.astral.sh/uv/) package manager
-- Passwordless SSH access to each GB10 host (`~/.ssh/config` aliases)
+The **SparkScope server** and the **devices it monitors** have different requirements:
 
-## Quick Start
+| Location | Required | Optional / feature-specific |
+| --- | --- | --- |
+| SparkScope server, native install | Git, Python 3.11+, uv, Node.js 22 and npm for frontend builds; SSH network access to the devices | PostgreSQL for shared installations; SQLite is the local default |
+| SparkScope server, container install | Docker Engine/Desktop with Compose v2 | HTTPS reverse proxy for team access; native Python/Node are not required on the host |
+| Monitored device | Linux, reachable SSH, an account with the required read permissions and standard Linux tools | NVIDIA driver and working `nvidia-smi` for GPU telemetry; `curl` for runtime discovery; `nvme-cli` and suitable noninteractive permissions for NVMe SMART |
+| Browser | A modern browser with JavaScript and WebSocket support | Playwright Chromium is needed only to run browser tests |
 
-```bash
-# Install uv if you don't have it
-brew install uv
+No SparkScope agent or Python/Node installation is required on the monitored devices. Docker service discovery requires that the SSH account can access Docker. Missing tools or privileges appear as unavailable measurements; onboarding does not install drivers or change permissions. macOS is used for local development; remote collection targets Linux.
 
-# Clone
-git clone <this-repo> gb10-dashboard
-cd gb10-dashboard
+## Installation
 
-# Install dependencies
-uv sync
+### Native: local workstation or Linux server
 
-# Configure
-cp config.example.yaml config.yaml
-vim config.yaml   # set ssh_alias, IPs per host
-
-# Initialize database
-uv run python -c "from db import init_db, set_db_path; import asyncio; set_db_path('~/.gb10-dashboard/metrics.db'); asyncio.run(init_db())"
-
-# Run
-uv run uvicorn app:app --host 127.0.0.1 --port 8000
-
-# Open
-open http://localhost:8000
-```
-
-## SSH Setup (each host)
-
-Add each node to `~/.ssh/config`:
-
-```
-Host host1
-    HostName 10.0.0.10
-    User <your-user>
-    IdentityFile ~/.ssh/id_ed25519
-    ServerAliveInterval 60
-
-Host host2
-    HostName 10.0.0.11
-    User <your-user>
-    IdentityFile ~/.ssh/id_ed25519
-    ServerAliveInterval 60
-```
-
-Copy your public key to each host: `ssh-copy-id host1`, `ssh-copy-id host2`.
-
-## Optional (per host)
-
-**Passwordless sudo for safe commands** — create `/etc/sudoers.d/dashboard` on each GB10:
-```
-<your-user> ALL=(ALL) NOPASSWD: /usr/sbin/nvme, /usr/bin/nvidia-smi, /usr/sbin/reboot, /usr/sbin/shutdown, /usr/bin/apt, /usr/bin/apt-get
-```
-
-**User in `docker` group** (if you run vLLM in containers) — dashboard auto-detects vLLM when `docker ps` works without sudo.
-
-**NVMe SMART** — requires `nvme-cli` (usually preinstalled on DGX OS).
-
-## macOS Autostart (optional)
+Install the required tools first and confirm their versions:
 
 ```bash
-cp launchd/gb10-dashboard.plist.example ~/Library/LaunchAgents/
-# Edit WorkingDirectory and username paths first
-launchctl load ~/Library/LaunchAgents/gb10-dashboard.plist.example
+python3 --version   # Python 3.11+ (uv may manage a separate Python)
+uv --version
+node --version     # v22.x
+npm --version
 ```
 
-## Architecture
+Clone and install from the committed lockfiles:
 
-```
-┌─────────────────────────────┐
-│  Browser (Alpine.js + canvas)  │
-└────────────┬────────────────┘
-             │ WebSocket (2s push)
-┌────────────▼────────────────┐
-│  FastAPI + uvicorn          │
-│  ┌───────────────────────┐  │
-│  │  polling_loop (2s)    │  │
-│  │  nvme_slow_poll (60s) │  │
-│  │  retention_loop       │  │
-│  └──────┬────────────────┘  │
-│         │                   │
-│  ┌──────▼──────┐  ┌──────┐  │
-│  │ ssh_collect │  │ vllm │  │
-│  │ (asyncssh)  │  │ coll │  │
-│  └──────┬──────┘  └───┬──┘  │
-│         │             │     │
-│         ▼             ▼     │
-│      ┌──────────────────┐   │
-│      │ SQLite (WAL)     │   │
-│      │  — metrics       │   │
-│      │  — gpu_processes │   │
-│      │  — commands_log  │   │
-│      │  — alerts        │   │
-│      └──────────────────┘   │
-└─────────────────────────────┘
-             ↓ SSH (persistent)
-     ┌───────┴───────┐
-┌────▼────┐     ┌────▼────┐
-│  host1  │     │  host2  │
-│ (GB10)  │     │ (GB10)  │
-└─────────┘     └─────────┘
+```bash
+git clone https://github.com/canberkys/sparkscope.git
+cd sparkscope
+uv sync --locked --python 3.12
+npm ci --prefix frontend
+npm run build --prefix frontend
+uv run python -m sparkscope.cli migrate
+uv run uvicorn app:app --host 127.0.0.1 --port 8010 --workers 1 --no-access-log
 ```
 
-## Similar Projects
+Open **http://127.0.0.1:8010**. In a second terminal, from the same repository, run:
 
-- [paul-aviles/NVIDIA-DGX-Spark-Dashboard](https://github.com/paul-aviles/NVIDIA-DGX-Spark-Dashboard) — simpler 2-node dashboard
-- [thx0701/dgx-spark-status](https://github.com/thx0701/dgx-spark-status) — SvelteKit version with Ollama/vLLM/llama.cpp support
-- [NVIDIA/dgx-spark-playbooks](https://github.com/NVIDIA/dgx-spark-playbooks) — official setup playbooks
-- [rossingram/Spark-DGX-Benchmark](https://github.com/rossingram/Spark-DGX-Benchmark) — benchmark scripts
+```bash
+uv run python -m sparkscope.cli setup-code
+```
 
-## License
+Use that local setup code in the browser to create your first administrator. **There is no default username or password.** Keep the setup code private. Once an account exists, use the local password-reset CLI if recovery is needed.
 
-MIT
+The default SQLite database is `~/.sparkscope/fleet.db`; encrypted credentials depend on `~/.sparkscope/master.secret`. Back up the database **and its matching key**. Do not replace a key when moving an existing database.
 
-## Notes
+### Docker / shared server
 
-- Dashboard binds to `127.0.0.1` only by default — no external exposure.
-- All SSH commands that mutate state (reboot, gpu_reset, apt_upgrade) are whitelisted and require UI confirmation.
-- `config.yaml` is `.gitignore`d — keep secrets local.
-- The device icon (`static/device.svg`) is a generic SVG drawn for this project to avoid any vendor-logo/trademark concerns.
+From a cloned repository:
+
+```bash
+# Set a long random URL-safe password in your shell or secret manager.
+export POSTGRES_PASSWORD='REPLACE_WITH_A_LONG_RANDOM_URL_SAFE_PASSWORD'
+docker compose -f deployment/compose.yaml up -d --build
+docker compose -f deployment/compose.yaml exec app /app/.venv/bin/python -m sparkscope.cli setup-code
+```
+
+Compose includes PostgreSQL and persistent database/data/key volumes. Open **http://127.0.0.1:8010** on that host for first setup. For team access, configure an HTTPS reverse proxy, the exact `SPARKSCOPE_ORIGINS` value and `SPARKSCOPE_SECURE_COOKIE=1`; forward WebSocket upgrades. See the [operations guide](deployment/OPERATIONS.md) for deployment, permissions, backup/restore and rollback.
+
+Run **one application worker and one collector per database**. This release does not support multiple application replicas or distributed collectors.
+
+### Configuration and development
+
+Environment variables are documented in [.env.example](.env.example). A local `.env` can be loaded by adding `--env-file .env` to the uvicorn command. The maintenance CLI does **not** automatically load `.env`: export the same data directory, database URL and key path before running it.
+
+For frontend development, keep the backend on 8010 and run:
+
+```bash
+npm run dev --prefix frontend
+```
+
+Open **http://127.0.0.1:5178**; Vite proxies the API and WebSocket to 8010. Node/npm are needed for builds and development, not for serving already-built assets from FastAPI.
+
+## Add devices & GPUs
+
+### Add a new host
+
+1. Sign in as an administrator and select **Add device**.
+2. Enter its name, address, SSH port, username and password or private key. The connection originates from the SparkScope server.
+3. Compare the displayed SSH host-key fingerprint with a trusted value from the device or its administrator. Approve it only after verification.
+4. Review the hardware/service discovery preview, optionally set groups, tags and cluster membership, then save.
+5. Check fresh telemetry and any unavailable metrics. Configure appropriate hardware alarm rules in **Settings → Operations & health → Hardware thresholds**.
+
+Password login depends on the remote SSH policy. Authentication does not grant extra sudo privileges. Discovery reads metadata; it does not download models, start inference or run setup commands on the device.
+
+### Monitor a server with two H200 GPUs
+
+Add the **server once**, using its management address. SparkScope discovers the two NVIDIA GPUs and tracks each by UUID. Expand the server to view separate utilization, memory, temperature and power measurements where supported.
+
+Do not add each GPU as another SSH device. System RAM and GPU-reported memory are separate measurements; two GPUs are not automatically treated as a single pooled memory space. SparkScope does not infer which GPU a service uses from its model name.
+
+### Add or replace a GPU in an existing host
+
+Install the hardware and compatible driver using the server/vendor procedure, then confirm that `nvidia-smi` lists it on the host. SparkScope does not perform physical installation or driver management.
+
+Resume the device if it was paused. Inventory refreshes on the approximately 60-second discovery cycle. A new GPU UUID receives its own current measurements; a removed GPU's history is retained. Transient discovery failures retain the last known inventory. Configure or review rules for the new GPU rather than assuming the previous card's limits apply.
+
+For GB10, dedicated NVIDIA cards and CPU-only hosts, the same onboarding flow applies. New UUID GPU temperature/power limits are left unconfigured until suitable rules are supplied; previously saved global settings still take effect. See [threshold precedence and compatibility](deployment/MONITORING.md).
+
+## Customize monitoring
+
+- **Settings → Monitoring views:** set search, group/cluster filters, metrics, chart colors, summary widgets, live window, TV density and rotation. Save personal views or admin-managed shared views.
+- **TV mode:** use four or six cards per page, fixed pages or timed rotation; press Escape to exit.
+- **Cluster view:** summarize explicitly assigned members. Membership does not configure or verify cluster fabric, distributed inference or pooled memory.
+- **History & details:** inspect persisted readings and events. Live charts hold up to five minutes of received samples in the current browser session; the live window does not change polling frequency.
+- **Notifications:** channels start disabled; configure and explicitly enable webhook/email delivery. Maintenance windows suppress matching notifications while recording continues.
+
+System/service collection defaults to 5 seconds; SMART and discovery default to 60 seconds, with independent failure backoff. History defaults to 24 hours of raw samples, 7 days of one-minute rollups and 90 days of 15-minute rollups. Provider support differs: the current Ollama adapter exposes model metadata, not queue/throughput charts.
+
+<details>
+<summary>More screenshots: TV, dual-H200 detail and mobile</summary>
+
+![Six-device TV view with synthetic telemetry](deployment/images/tv.png)
+
+<p>All images below show synthetic demo telemetry.</p>
+<p>
+<img src="deployment/images/dual-h200.png" alt="Expanded synthetic dual-H200 device with separate GPU charts" width="420">
+<img src="deployment/images/mobile.png" alt="Synthetic fleet overview on mobile" width="260">
+</p>
+
+</details>
+
+## Try the synthetic demo
+
+[Open the mixed-hardware demo](https://canberkys.github.io/sparkscope/?hosts=10&hardware=mixed) or [50-device TV mode](https://canberkys.github.io/sparkscope/?hosts=50&hardware=mixed&mode=tv).
+
+The demo and application are built from the same React source. The demo runs in the browser, never connects to real devices and never sends notifications. Saved demo views are browser-local simulations. To run it locally:
+
+```bash
+python3 scripts/build_demo.py
+python3 -m http.server 8012 --directory docs --bind 127.0.0.1
+```
+
+Open **http://127.0.0.1:8012/?hosts=10&hardware=mixed**. Device counts: `2`, `10`, `50`. Add `mode=tv`, `role=viewer` or a history example such as `history=gap`.
+
+## Upgrade and verification
+
+The legacy `config.yaml` is not the new configuration source. The [legacy import procedure](deployment/OPERATIONS.md#upgrade-from-the-two-device-version) preserves the source and imports devices paused for fresh SSH verification. Original `db.py`, `vllm_collector.py` and `static/` remain reference files; the new application does not serve them.
+
+```bash
+uv run pytest -q
+uv run ruff check sparkscope tests migrations app.py commands.py ssh_collector.py scripts
+uv run ruff format --check sparkscope tests migrations app.py commands.py ssh_collector.py scripts
+npm run format:check --prefix frontend
+npm run build --prefix frontend
+(cd frontend && npx playwright install chromium)
+npm run test:e2e --prefix frontend
+npm run test:real --prefix frontend
+```
+
+PostgreSQL tests require a **dedicated test server/account** through `SPARKSCOPE_TEST_POSTGRES_URL`; the account must create/drop temporary test databases. Never point this at the application database. The real-API browser suite uses disposable local database/SSH fixtures, not real hardware.
+
+See [validation](deployment/VALIDATION.md) for exact completed checks and limits, [changelog](CHANGELOG.md) for the 0.1 → 0.2 transition, and [roadmap](ROADMAP.md) for remaining acceptance and future scope.
+
+## Architecture and limits
+
+```text
+Browser (React / TypeScript)
+  ↕ authenticated API + WebSocket
+FastAPI · sessions / roles · inventory · history · notifications
+  ├─ SQLAlchemy → SQLite or PostgreSQL
+  └─ independent collectors → verified SSH → Linux hosts / NVIDIA GPUs
+```
+
+Supported remote scope is Linux system telemetry, NVIDIA GPUs and NVMe SMART. AMD/Intel GPU adapters, Windows/macOS remote collectors, HPE iLO/Redfish, detailed MIG monitoring, automatic network discovery, model lifecycle management and high availability are not implemented.
+
+Licensed under [MIT](LICENSE). Device illustrations are generic project artwork.

@@ -25,7 +25,10 @@
         <string>--host</string>
         <string>127.0.0.1</string>
         <string>--port</string>
-        <string>8000</string>
+        <string>8010</string>
+        <string>--workers</string>
+        <string>1</string>
+        <string>--no-access-log</string>
     </array>
 
     <key>WorkingDirectory</key>
@@ -38,10 +41,10 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/Users/&lt;YOUR_USER&gt;/.gb10-dashboard/launchd-stdout.log</string>
+    <string>/Users/&lt;YOUR_USER&gt;/.sparkscope/launchd-stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/&lt;YOUR_USER&gt;/.gb10-dashboard/launchd-stderr.log</string>
+    <string>/Users/&lt;YOUR_USER&gt;/.sparkscope/launchd-stderr.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>

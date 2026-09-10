@@ -1,0 +1,29 @@
+.hardware-policy > div:not(.panel-heading),
+.hardware-policy fieldset,
+.hardware-policy form {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+.hardware-policy fieldset > *,
+.hardware-policy form > * {
+  min-width: 0;
+}
+.hardware-policy label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+.hardware-policy input,
+.hardware-policy select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.hardware-policy details {
+  min-width: 0;
+}
+.hardware-policy td:first-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

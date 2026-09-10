@@ -23,18 +23,17 @@ COMMANDS = {
     "reboot": {
         "category": "System",
         "label": "Reboot",
-        "command": "sudo reboot",
+        "command": "sudo -n reboot",
         "destructive": True,
         "confirmation_text": "The device will reboot. Are you sure?",
     },
     "shutdown": {
         "category": "System",
         "label": "Shutdown",
-        "command": "sudo shutdown -h now",
+        "command": "sudo -n shutdown -h now",
         "destructive": True,
         "confirmation_text": "The device will shut down. Are you sure? (You cannot power it back on without physical access.)",
     },
-
     # GPU
     "nvidia_smi_full": {
         "category": "GPU",
@@ -51,11 +50,10 @@ COMMANDS = {
     "gpu_reset": {
         "category": "GPU",
         "label": "Reset GPU",
-        "command": "sudo nvidia-smi --gpu-reset -i 0",
+        "command": "sudo -n nvidia-smi --gpu-reset -i 0",
         "destructive": True,
         "confirmation_text": "GPU will be reset. Active CUDA processes will crash. Are you sure?",
     },
-
     # Network
     "interface_status": {
         "category": "Network",
@@ -74,10 +72,9 @@ COMMANDS = {
     "wifi_quality": {
         "category": "Network",
         "label": "WiFi Signal Quality",
-        "command": "iw dev wlP9s9 link",
+        "command": 'for i in $(iw dev | awk \'$1 == "Interface" {print $2}\'); do iw dev "$i" link; done',
         "destructive": False,
     },
-
     # Logs
     "dmesg_tail": {
         "category": "Logs",
@@ -97,19 +94,19 @@ COMMANDS = {
         "command": "dmesg -T | grep -i nvidia | tail -30",
         "destructive": False,
     },
-
     # Package
     "apt_update": {
         "category": "Package",
         "label": "apt update",
-        "command": "sudo apt update",
-        "destructive": False,
+        "command": "sudo -n apt-get update",
+        "destructive": True,
+        "confirmation_text": "Refresh package indexes on the selected devices?",
         "long_running": True,
     },
     "apt_upgrade": {
         "category": "Package",
         "label": "apt upgrade",
-        "command": "sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y",
+        "command": "sudo -n apt-get -y -o Dpkg::Options::=--force-confold upgrade",
         "destructive": True,
         "confirmation_text": "All packages will be upgraded. This cannot be undone. Are you sure?",
         "long_running": True,

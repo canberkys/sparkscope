@@ -8,7 +8,7 @@ venv/
 env/
 
 # uv
-uv.lock
+# Commit uv.lock for repeatable installs
 
 # Secrets & runtime data
 config.yaml
@@ -31,3 +31,15 @@ Thumbs.db
 # Environment
 .env
 .env.local
+node_modules/
+frontend/dist/
+frontend/dist-demo/
+playwright-report/
+test-results/
+.pytest_cache/
+.ruff_cache/
+.runtime/
+*.secret
+
+# TypeScript incremental build cache
+*.tsbuildinfo
